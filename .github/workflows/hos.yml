@@ -1,0 +1,24 @@
+name: HOS
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node .hos/tools/hos.mjs doctor
+      - run: node .hos/tools/hos.mjs test
+      - run: node .hos/tools/hos.mjs smoke
+      - run: node .hos/tools/hos.mjs bench --compare
+      - name: Require measured PR improvement
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git show FETCH_HEAD:.hos/doc/bench/baseline.json > /tmp/hos-base-baseline.json
+          node .hos/tools/hos.mjs bench --compare --baseline-file /tmp/hos-base-baseline.json --require-improvement

@@ -1,0 +1,16 @@
+{
+  "date": "2026-06-01",
+  "scenarios": 2,
+  "policyRecall": 1,
+  "recalledOf": "1/1",
+  "recallMisses": [],
+  "policyApplication": 1,
+  "applicationMisses": [],
+  "precision": 1,
+  "falseSurfaces": 0,
+  "precisionViolations": [],
+  "docHealthy": true,
+  "docChecksPassed": "17/17 checks passed",
+  "specCapabilities": 0,
+  "clarifyingQuestions": 0
+}

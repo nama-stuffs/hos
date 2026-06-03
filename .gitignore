@@ -1,0 +1,16 @@
+node_modules/
+*.log
+
+.hos/.cache/
+.hos/task/*
+!.hos/task/README.md
+.hos/reports/
+.hos/tickets/*/evidence/
+.hos/tickets/*/claim.json
+.hos/tickets/*/log/
+
+.claude/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

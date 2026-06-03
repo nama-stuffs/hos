@@ -1,0 +1,31 @@
+{
+  "name": "@nama-stuffs/hos",
+  "version": "0.1.0-beta",
+  "description": "HOS - a file-based, agent-agnostic operating layer for coding agents.",
+  "type": "module",
+  "bin": {
+    "hos": "bin/hos.mjs"
+  },
+  "files": [
+    ".hos",
+    "AGENTS.md",
+    "VISION.md",
+    "README.md",
+    "LICENSE",
+    "bin"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nama-stuffs/hos"
+  },
+  "scripts": {
+    "test": "node .hos/tools/hos.mjs test",
+    "doctor": "node .hos/tools/hos.mjs doctor",
+    "smoke": "node .hos/tools/hos.mjs smoke",
+    "bench": "node .hos/tools/hos.mjs bench --compare"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "hos": {
+    "version": "0.1.0-beta"
+  },
+  "project": {
+    "name": "",
+    "description": "",
+    "adopted": false
+  },
+  "tickets": {
+    "prefix": "T"
+  },
+  "runtime": {
+    "install": "",
+    "dev": "",
+    "build": ""
+  },
+  "checks": {
+    "typecheck": "",
+    "lint": "",
+    "unit": "",
+    "e2e": ""
+  }
+}
