@@ -33,7 +33,8 @@ Treat `AGENTS.md` as already read. Read the step contract, matching policies,
 
 1. Launch the app through the configured run or e2e command.
 2. Exercise the scenario and reach each required state.
-3. Save evidence in `.hos/task/`.
+3. Save evidence under the ticket's `evidence/` directory
+   (`.hos/tickets/<id>/evidence/`).
 4. Report what matched, what failed, and where evidence lives.
 
 ## Guardrails

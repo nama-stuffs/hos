@@ -5,6 +5,16 @@
 This standard defines project-independent code quality signals. Project-specific
 language or framework gates may add narrower local audit files.
 
+## Minimum complexity
+
+Prefer the smallest correct implementation. Favor deletion and simplification over
+addition: removing code while preserving behavior is a positive result, not a loss.
+Build from small, single-purpose modules so the whole stays short and the next
+change stays local. When a change only adds, first ask what it could remove or
+simplify. A net-negative diff that keeps behavior is the ideal outcome, not the
+exception. The `code-optimization` task applies this as a procedure
+(`hos task show code-optimization`).
+
 ## Audit outcome
 
 For each audited unit, choose one outcome:
@@ -52,6 +62,7 @@ Flag these patterns unless local context proves they are intentional:
 
 Keep:
 
+- a net reduction in code size or complexity that preserves behavior;
 - small cohesive helpers with stable contracts;
 - shared logic extracted only after two real uses or a clear domain concept;
 - early returns that expose the main path;

@@ -126,7 +126,7 @@ function preserveScenario(dir, check) {
     check(readFileSync(join(dir, "README.md"), "utf8") === "# Keep Me\n", "README.md was preserved");
     check(readFileSync(join(dir, "DESIGN.md"), "utf8") === "# Existing Design\n", "DESIGN.md was preserved");
     check(readFileSync(join(dir, "CLAUDE.md"), "utf8") === "See AGENTS.md.\n", "CLAUDE.md was preserved");
-    check(readFileSync(join(dir, ".gitignore"), "utf8").includes(".hos/task/*"), ".gitignore gained HOS block");
+    check(readFileSync(join(dir, ".gitignore"), "utf8").includes(".hos/reports/"), ".gitignore gained HOS block");
     check(existsSync(localPolicy), "existing harness memory policy was preserved");
     check(runHos(dir, ["doctor"]).ok, "doctor passes after preservation adopt");
 }

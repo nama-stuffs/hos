@@ -2,14 +2,16 @@
 
 HOS is a file-based agent harness. Drop `.hos/` and `AGENTS.md` into a project;
 agents then use the local `hos` CLI for tickets, an acceptance-criteria spec,
-say-once memory, parallel dispatch, retrospective metrics, upgrades, and proof.
+say-once memory, parallel dispatch, change-level autonomy, a production audit
+ledger, task playbooks, retrospective metrics, upgrades, and proof.
 
 New here? Read [VISION.md](VISION.md) for the why, the mental model, how it works
 today, and the roadmap.
 
 **Status: beta** - the layout and CLI may change before 1.0. HOS is exercised by
 the [HOS Lab](https://github.com/nama-stuffs/hos-lab), a black-box benchmark that
-scores install, adopt, upgrade, orchestration, retrieval, and process efficiency.
+scores install, adopt, upgrade, orchestration, retrieval, autonomy, audit, tasks,
+and process efficiency.
 
 Install prompt:
 
@@ -36,6 +38,8 @@ npx @nama-stuffs/hos adopt --name "<project>"   # existing project
 - `.hos/tickets/` is the ticket ledger: a terse surface plus a deep command log.
 - `.hos/memory/` stores say-once policies.
 - `.hos/doc/spec/` is the living functional spec, written as acceptance criteria.
+- `.hos/task/` holds keyword-activated task playbooks (`hos task match`).
+- `.hos/audit/ledger.json` tracks audited production files.
 - `.hos/accelerators/registry.json` lists opt-in helpers.
 
 ## Requirements
@@ -55,6 +59,13 @@ node .hos/tools/hos.mjs upgrade --from <path-to-fresh-hos>
 node .hos/tools/hos.mjs compose <lenses>
 node .hos/tools/hos.mjs dispatch <ticket-id> --lenses <lenses>
 node .hos/tools/hos.mjs retro <ticket-id> --outcome <...>
+node .hos/tools/hos.mjs autonomy show
+node .hos/tools/hos.mjs ticket level <id> <low|medium|high>
+node .hos/tools/hos.mjs ticket budget <id> --estimate <n>
+node .hos/tools/hos.mjs ticket park <id> --note "<why>"
+node .hos/tools/hos.mjs audit check
+node .hos/tools/hos.mjs task match "<request>"
+node .hos/tools/hos.mjs language show
 ```
 
 ## Test Gate

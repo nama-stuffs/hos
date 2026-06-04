@@ -46,7 +46,11 @@ the step becomes a decision point for Inter.
 ## Execution plan
 
 For each ticket Alpha writes or refreshes `plan.json`. Each step states intent,
-actor, inputs, acceptance, evidence, and failure path:
+actor, level, inputs, acceptance, evidence, and failure path. The level is the
+change level the step requires (`task.md`); when it exceeds the granted autonomy,
+Alpha escalates through Inter before running it. Alpha also records an effort
+estimate per ticket (`hos ticket budget`); when observed effort crosses the overrun
+factor, it parks the ticket for a user decision rather than continuing.
 
 ```jsonc
 {
@@ -56,6 +60,7 @@ actor, inputs, acceptance, evidence, and failure path:
       "id": "s1",
       "intent": "Implement the settings panel",
       "actor": { "base": "frontend", "lenses": ["ux", "design"] },
+      "level": "medium",
       "inputs": ["DESIGN.md#components", "FR-4"],
       "acceptance": "Panel renders per design; values persist; AA contrast.",
       "evidence": "unit + browser screenshot",

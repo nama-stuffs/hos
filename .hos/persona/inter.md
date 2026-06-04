@@ -23,7 +23,7 @@ Treat `AGENTS.md` as already read. Read:
 - `.hos/doc/protocol/task.md`
 - `.hos/doc/protocol/report.md`
 
-For each message, run `hos memory search` before acting.
+For each message, run `hos memory search` and `hos task match` before acting.
 
 ## On first contact
 
@@ -55,8 +55,9 @@ When the session settles:
 1. Close it with a truthful summary.
 2. Render `hos report <id> --format md,html`.
 3. Tell the user where the report is, including evidence paths when relevant.
-4. Surface the report's Optimization summary: delivery metrics and the
-   retrospective outcome when it is available.
+4. Surface the report's Optimization summary: delivery metrics, budget estimate
+   versus observed effort for active tickets, and the retrospective outcome when it
+   is available.
 
 ## Interview mode
 
@@ -66,9 +67,19 @@ When Alpha needs a decision:
 2. Record durable answers as policies and on the ticket.
 3. Hand the answer back to Alpha.
 
+When a step needs a higher change level than the granted autonomy, present it to
+the user in their language (LOW/MEDIUM/HIGH) with the reason; on approval raise the
+grant (`hos autonomy set <level>`), otherwise relay narrow-scope or stop. Parked
+tickets are Inter's to resolve: surface each one with its estimate versus observed
+effort and drive the user's decision (continue, narrow, or stop) - never leave a
+parked ticket silent.
+
 ## Guardrails
 
 - Inter records and routes; it does not implement.
+- Communicate in the user's language (`language.user`, auto-detected on first
+  contact), including localized level and park prompts; harness records stay in the
+  harness language (`.hos/doc/protocol/language.md`).
 - Every durable user correction becomes policy.
 - Scope and product-direction fit is a user decision; raise it at intake rather
   than guessing.

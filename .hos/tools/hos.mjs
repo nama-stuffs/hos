@@ -7,9 +7,14 @@
 //   hos init  --name <n> [--desc ..] # set up a new project
 //   hos adopt --name <n>             # bind to an existing surrounding project
 //   hos upgrade --from <path> [--apply]  # re-sync framework files from a newer release
-//   hos ticket create "<title>" [--report ..] [--acceptance ..] [--actor frontend+ux]
+//   hos ticket create "<title>" [--report ..] [--acceptance ..] [--actor frontend+ux] [--level low|medium|high]
 //   hos ticket list [--claimable] | show <id> | move <id> <status> | link <id> [--parent ..] | report <id> | index
-//   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail | log <id> --kind .. | thread <id>
+//   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail | level <id> <low|medium|high> | log <id> --kind .. | thread <id>
+//   hos ticket budget <id> [--estimate <n>] [--unit ..] | park <id> [--note ..]   # effort estimate vs observed; park for a user decision
+//   hos autonomy show | set <low|medium|high> | gate <low|medium|high>  # change-level permission gate (doc/protocol/task.md)
+//   hos audit record <path> [--by ..] [--ticket ..] | status [<path>] | check | prune  # production-file audit ledger (doc/protocol/audit.md)
+//   hos task list | match "<request>" | show <name>   # keyword-activated reusable playbooks (.hos/task/)
+//   hos language show | set [--harness <code>] [--user <code|auto>]   # harness vs user-facing language (doc/protocol/language.md)
 //   hos run <id> [--by ..] -- <command>          # capture a command into the ticket deep log
 //   hos dispatch <id> [--lenses frontend+ux] [--by ..] # assemble a worker brief (the host spawns; HOS does not)
 //   hos retro <id> --outcome <a,b,..> [--by ..] [--note ..]  # record a retrospective decision
@@ -34,6 +39,10 @@ import { AGENTS_MD, HOS_DIR } from "./lib/paths.mjs";
 import { planAgentsMerge, applyAgentsMerge, STRATEGIES, hosAgentsContent } from "./lib/merge.mjs";
 import * as memory from "./lib/memory.mjs";
 import * as ledger from "./lib/ledger.mjs";
+import * as autonomy from "./lib/autonomy.mjs";
+import * as audit from "./lib/audit.mjs";
+import * as task from "./lib/task.mjs";
+import * as language from "./lib/language.mjs";
 import * as spec from "./lib/spec.mjs";
 import * as session from "./lib/session.mjs";
 import { render } from "./lib/report.mjs";
@@ -148,6 +157,7 @@ const commands = {
                 report: str(f.report),
                 acceptance: str(f.acceptance),
                 actor: str(f.actor),
+                level: str(f.level),
                 labels: f.label ? str(f.label).split(",") : []
             }));
         },
@@ -166,6 +176,22 @@ const commands = {
         verify(a) {
             const f = flags(a);
             print(ledger.verify(f._[0], { result: str(f.result, "pass"), note: str(f.note), by: str(f.by, "tester") }));
+        },
+        level(a) {
+            const f = flags(a);
+            print(ledger.setLevel(f._[0], f._[1]));
+        },
+        budget(a) {
+            const f = flags(a);
+            if (f.estimate !== undefined) {
+                print(ledger.setBudget(f._[0], { estimate: f.estimate, unit: str(f.unit, "steps") }));
+            } else {
+                print(ledger.budgetStatus(f._[0]));
+            }
+        },
+        park(a) {
+            const f = flags(a);
+            print(ledger.park(f._[0], { note: str(f.note), by: str(f.by, "alpha") }));
         },
         log(a) {
             const f = flags(a);
@@ -274,6 +300,40 @@ const commands = {
                 fail("no session to report metrics on");
             }
             print(sessionMetrics(id));
+        }
+    },
+
+    autonomy: {
+        show: () => print(autonomy.status()),
+        set: (a) => print(autonomy.setGranted(flags(a)._[0])),
+        gate: (a) => print(autonomy.gate(flags(a)._[0]))
+    },
+
+    audit: {
+        record(a) {
+            const f = flags(a);
+            print(audit.record(f._[0], { by: str(f.by), ticket: str(f.ticket), note: str(f.note) }));
+        },
+        status: (a) => print(audit.status(flags(a)._[0])),
+        check() {
+            const r = audit.check();
+            print(r);
+            process.exit(r.ok ? 0 : 1);
+        },
+        prune: () => print(audit.prune())
+    },
+
+    task: {
+        list: () => print(task.list()),
+        match: (a) => print(task.match(flags(a)._.join(" "))),
+        show: (a) => print(task.show(flags(a)._[0]))
+    },
+
+    language: {
+        show: () => print(language.status()),
+        set(a) {
+            const f = flags(a);
+            print(language.set({ harness: str(f.harness, ""), user: str(f.user, "") }));
         }
     },
 

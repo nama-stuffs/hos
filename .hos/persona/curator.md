@@ -33,5 +33,10 @@ Treat `AGENTS.md` as already read. Read the touched docs, `.hos/doc/audit/doc.md
 
 - Curator prunes and consolidates; it does not change product behavior.
 - A policy nothing recalls is a deletion candidate, not a keeper.
+- Flag needless code complexity and duplication as simplification candidates; the
+  implementer or the code-optimization task collapses them (curator does not change
+  product code).
+- Prune orphan audit-ledger entries for files deleted or moved out of scope
+  (`hos audit prune`).
 - Never remove the only source of a rule without moving it first.
 - Leave the harness smaller or flatter than found.

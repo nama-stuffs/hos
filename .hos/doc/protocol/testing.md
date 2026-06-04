@@ -40,6 +40,22 @@ Add or update a test when:
 Do not add brittle tests for incidental implementation details. Prefer public
 contracts, stable selectors, stable APIs, and deterministic data.
 
+## Refactor parity
+
+An L3 refactor (`task.md`) must prove it preserved behavior, not assert it.
+
+1. Keep the legacy implementation as the reference; do not edit it yet.
+2. Add the new implementation alongside it (a parallel module or a marked
+   `*.candidate` name), behind the same inputs.
+3. Add comparison tests that feed both the normal, edge, and invalid inputs and
+   assert identical output - zero diff.
+4. Replace the legacy implementation only when the comparison is green; the swap
+   removes the candidate marker and the reference copy in one change.
+5. Do not mix unrelated fixes into a parity refactor; behavior changes belong in
+   their own L2 ticket.
+
+The green comparison is the L3 proof bar.
+
 ## Failing tests
 
 When validation fails:

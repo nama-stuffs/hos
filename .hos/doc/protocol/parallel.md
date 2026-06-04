@@ -103,6 +103,16 @@ only host-specific part is the spawn. If the host cannot spawn sub-agents, the
 conductor runs the **same loop serially** - claim, work, `hos run`, `hos ticket
 log`, close, next - losing only parallelism, not the record or correctness.
 
+## Shared worktree, by design
+
+Workers share one worktree. HOS does not isolate them in separate git worktrees;
+isolation is **logical** - the claim mutex (one ticket, one owner), append-only
+journeys and deep logs, and atomically rebuilt indexes. Independent tickets run in
+parallel safely because each worker writes only its own ticket's files. Overlapping
+edits to the same files serialize (claim, work, release, next) rather than run in
+parallel. Filesystem isolation is a deliberate non-goal: it keeps the model simple
+and dependency-free.
+
 ## Completion bar
 
 Parallel execution is healthy when every claimed ticket had exactly one owner, no

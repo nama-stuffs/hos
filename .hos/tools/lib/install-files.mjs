@@ -12,8 +12,6 @@ const README_MD = join(REPO_ROOT, "README.md");
 
 const HOS_GITIGNORE_BLOCK = `# HOS local artifacts
 .hos/.cache/
-.hos/task/*
-!.hos/task/README.md
 .hos/reports/
 .hos/tickets/*/evidence/
 .hos/tickets/*/claim.json
@@ -180,7 +178,7 @@ export function ensureGeneratedFiles({ projectName = "", description = "", adopt
 
     if (existsSync(GITIGNORE)) {
         const current = readFileSync(GITIGNORE, "utf8");
-        if (current.includes(".hos/task/*") && current.includes(".hos/reports/")) {
+        if (current.includes(".hos/.cache/") && current.includes(".hos/reports/")) {
             kept.push(".gitignore");
         } else {
             writeFileSync(GITIGNORE, `${current.trimEnd()}\n\n${HOS_GITIGNORE_BLOCK}`);

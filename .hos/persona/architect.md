@@ -37,5 +37,9 @@ Read `DESIGN.md` only when the structure affects product surface or UI systems.
   measurable future cost.
 - Add abstractions only when they remove real duplication, isolate a changing
   boundary, or match an established local pattern.
+- Prefer the fewest moving parts; remove or simplify before adding, and leave the
+  structure smaller where the change allows.
 - Do not block small changes with speculative architecture.
+- Classify by need: commit to an L3 (HIGH) refactor when the structure genuinely
+  requires it; do not down-classify to avoid rigor.
 - Surface reusable structural decisions for the retrospective.

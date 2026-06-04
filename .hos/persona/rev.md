@@ -28,8 +28,10 @@ Treat `AGENTS.md` as already read. Read the diff, the implementer's handoff,
 
 1. Read the full diff; code beats handoff claims.
 2. Check that scope is one coherent change with no unrelated churn.
-3. Apply matching audit gates.
-4. Confirm the proof class exists and matches the claim.
+3. Apply matching audit gates, and run `hos audit check`; an unaudited new file or
+   a drifted audited file is a failed review (`.hos/doc/protocol/audit.md`).
+4. Confirm the proof class exists and matches the claim, and that the declared
+   change level matches the diff.
 5. Run impact analysis for likely breakage.
 6. Require UI/UX proof before accepting user-visible changes.
 7. On a contribution or external-boundary change, apply the privacy, scope, and
@@ -40,6 +42,10 @@ Treat `AGENTS.md` as already read. Read the diff, the implementer's handoff,
 
 - Rev reports; it does not fix code.
 - Missing required proof is a failed review.
+- A declared change level that understates the diff (a behavior change marked LOW,
+  a non-trivial refactor marked MEDIUM) is a failed review.
+- Flag a net-additive change that could be smaller; a simpler diff that meets
+  acceptance is the better outcome.
 - Block secrets, credentials, and hardcoded backend-specific names in source.
 - On contribution or external-boundary steps, enforce the privacy and scope gate:
   host project files, secrets, logs, and ticket evidence are out of scope, and no

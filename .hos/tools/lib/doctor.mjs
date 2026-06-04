@@ -14,10 +14,12 @@ const REQUIRED = [
     "doc/protocol/orchestration.md", "doc/protocol/memory.md", "doc/protocol/task.md",
     "doc/protocol/spec.md", "doc/protocol/report.md", "doc/protocol/session.md",
     "doc/protocol/testing.md", "doc/protocol/bench.md", "doc/protocol/upgrade.md",
-    "doc/protocol/parallel.md", "doc/protocol/retrospective.md", "doc/accelerators.md",
+    "doc/protocol/parallel.md", "doc/protocol/retrospective.md", "doc/protocol/audit.md",
+    "doc/protocol/language.md", "doc/accelerators.md",
     "doc/audit/code.md", "doc/audit/design.md", "doc/audit/ux.md",
     "doc/audit/doc.md", "doc/audit/harness.md",
-    "accelerators/registry.json", "agents.template.md", "tools/hos.mjs"
+    "accelerators/registry.json", "agents.template.md", "tools/hos.mjs",
+    "task/self-optimization.md", "task/code-optimization.md", "task/audit.md"
 ];
 
 // In the source repo the shipped agent template must equal the root AGENTS.md, so
@@ -111,13 +113,28 @@ function benchReady() {
         && readdirSync(scenarios).some((file) => file.endsWith(".md"));
 }
 
+// The audit ledger is optional project state, but if present it must be valid
+// JSON so `hos audit` can read it.
+function auditLedgerOk() {
+    const file = join(HOS_DIR, "audit", "ledger.json");
+    if (!existsSync(file)) {
+        return true;
+    }
+    try {
+        JSON.parse(readFileSync(file, "utf8"));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function ignoreRulesOk() {
     const file = join(REPO_ROOT, ".gitignore");
     if (!existsSync(file)) {
         return false;
     }
     const text = readFileSync(file, "utf8");
-    return [".hos/task/*", "!.hos/task/README.md", ".hos/reports/", ".hos/tickets/*/evidence/"]
+    return [".hos/.cache/", ".hos/reports/", ".hos/tickets/*/evidence/", ".hos/tickets/*/claim.json"]
         .every((rule) => text.includes(rule));
 }
 
@@ -154,6 +171,7 @@ export function doctor() {
     checks.push(check("agent template matches AGENTS.md (source repo)", !isSourceRepo() || agentsTemplateInSync()));
     checks.push(check("package.json version matches HOS_VERSION (source repo)", !isSourceRepo() || packageVersionInSync()));
     checks.push(check("benchmark baseline and scenarios present", benchReady()));
+    checks.push(check("audit ledger parses when present", auditLedgerOk()));
 
     const broken = brokenLinks();
     checks.push(check("no broken doc links", broken.length === 0, broken.slice(0, 5).join(" | ")));

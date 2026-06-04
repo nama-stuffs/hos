@@ -75,7 +75,7 @@ test("drop-in adopts inside a real git repo and merges AGENTS.md in one step", {
 
         const ignore = readFileSync(join(dir, ".gitignore"), "utf8");
         assert.match(ignore, /dist\//, "host ignore rules preserved");
-        assert.match(ignore, /\.hos\/task\/\*/, "HOS ignore block added");
+        assert.match(ignore, /\.hos\/reports\//, "HOS ignore block added");
 
         assert.equal(run(dir, ["doctor"]).ok, true, "doctor passes in a git-backed adoption");
     } finally {

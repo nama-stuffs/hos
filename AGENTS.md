@@ -24,6 +24,8 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 3. Load only the files needed for the current step.
 4. Follow `.hos/doc/protocol/`.
 5. Surface reusable decisions and friction for the retrospective.
+6. Prefer the smallest correct change; deletion and simplification are wins.
+7. When a request matches a task playbook (`hos task match`), load and follow it.
 
 ## Personas
 
@@ -55,9 +57,13 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 - [upgrade](.hos/doc/protocol/upgrade.md)
 - [parallel](.hos/doc/protocol/parallel.md)
 - [retrospective](.hos/doc/protocol/retrospective.md)
+- [audit](.hos/doc/protocol/audit.md)
+- [language](.hos/doc/protocol/language.md)
 
 Audit gates live in `.hos/doc/audit/`. Optional accelerators live in
-`.hos/accelerators/` and are governed by `.hos/doc/accelerators.md`.
+`.hos/accelerators/` and are governed by `.hos/doc/accelerators.md`. Harness files
+use `language.harness` (English by default); Inter and reports use the user's
+language (`language.user`).
 
 ## CLI
 

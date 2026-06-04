@@ -16,6 +16,7 @@ export const RETRO_OUTCOMES = [
     "bench-scenario", "test-tooling", "follow-up", "contribution-candidate"
 ];
 import { settings } from "./config.mjs";
+import { normalizeLevel } from "./autonomy.mjs";
 import * as fm from "./frontmatter.mjs";
 
 function prefix() {
@@ -88,13 +89,13 @@ function writePlan(id, actor) {
 }
 
 // Create a ticket. Returns { id, dir }. actor is "base+lens+lens" (base first).
-export function create({ title, report = "", acceptance = "", actor = "", labels = [] }) {
+export function create({ title, report = "", acceptance = "", actor = "", level = "", labels = [] }) {
     const id = newId(title);
     const dir = dirOf(id);
     mkdirSync(join(dir, "evidence"), { recursive: true });
 
     const data = {
-        id, title, status: "reported", actor,
+        id, title, status: "reported", actor, level: level ? normalizeLevel(level) : "",
         parent: "", blocks: [], blockedBy: [], duplicateOf: "", labels,
         created: today(), updated: today()
     };
@@ -120,7 +121,7 @@ export function list() {
     return ticketDirs().map((id) => {
         const { data } = read(id);
         const claim = claimOf(data.id || id);
-        return { id: data.id || id, title: data.title, status: data.status, actor: data.actor, claimedBy: claim?.by || null };
+        return { id: data.id || id, title: data.title, status: data.status, level: data.level || "", labels: Array.isArray(data.labels) ? data.labels : [], actor: data.actor, claimedBy: claim?.by || null };
     });
 }
 
@@ -243,11 +244,79 @@ export function show(id) {
 export function move(id, status, note = "") {
     const { data, body } = read(id);
     data.status = status;
+    // Leaving blocked clears a park: the user's decision has been taken.
+    if (status !== "blocked" && Array.isArray(data.labels)) {
+        data.labels = data.labels.filter((l) => l !== "parked");
+    }
     data.updated = today();
     writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
     journey(id, { actor: "alpha", kind: "status", summary: `-> ${status}${note ? `: ${note}` : ""}`, ref: status });
     rebuildIndex();
     return { id, status };
+}
+
+// Set the change level a ticket genuinely requires (low|medium|high). Alpha sets
+// it at planning; rev verifies the declared level matches the diff. See the
+// change-levels & autonomy section of doc/protocol/task.md.
+export function setLevel(id, level) {
+    const { data, body } = read(id);
+    data.level = normalizeLevel(level);
+    data.updated = today();
+    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+    journey(id, { actor: "alpha", kind: "level", summary: `level -> ${data.level}` });
+    rebuildIndex();
+    return { id, level: data.level };
+}
+
+// Journey kinds that count as observed effort, alongside captured runs. HOS cannot
+// see tokens, so the honest signal is the recorded actions on the ticket.
+const WORK_KINDS = ["status", "verify", "note", "handoff", "level"];
+
+function readBudget(id) {
+    const path = join(dirOf(id), "budget.json");
+    return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
+}
+
+// Record Alpha's effort estimate for a ticket (planning). Stored beside the
+// ticket, not in frontmatter, because the estimate is a small structured object.
+export function setBudget(id, { estimate, unit = "steps" } = {}) {
+    if (!existsSync(dirOf(id))) {
+        throw new Error(`no such ticket: ${id}`);
+    }
+    const n = Number(estimate);
+    if (!Number.isFinite(n) || n <= 0) {
+        throw new Error("budget needs --estimate <positive number>");
+    }
+    writeFileSync(join(dirOf(id), "budget.json"), JSON.stringify({ estimate: n, unit, setBy: "alpha", at: nowIso() }, null, 2) + "\n");
+    journey(id, { actor: "alpha", kind: "budget", summary: `estimate ${n} ${unit}` });
+    return { id, estimate: n, unit };
+}
+
+// Compare observed effort (captured runs plus work events) against the estimate.
+// `over` is the park trigger: observed has reached overrunFactor x estimate.
+export function budgetStatus(id) {
+    const budget = readBudget(id);
+    const runCount = runs(id).length;
+    const events = show(id).journey.filter((e) => WORK_KINDS.includes(e.kind)).length;
+    const observed = runCount + events;
+    const factor = settings().budget?.overrunFactor ?? 1.6;
+    const estimate = budget?.estimate || 0;
+    const ratio = estimate > 0 ? Number((observed / estimate).toFixed(2)) : 0;
+    return { id, estimate, unit: budget?.unit || "steps", observed, runs: runCount, events, overrunFactor: factor, ratio, over: estimate > 0 && ratio >= factor };
+}
+
+// Park a ticket for a user decision (budget overrun, or a too-large/unclear task).
+// It becomes a blocked ticket carrying the `parked` label; Inter surfaces it and
+// drives the decision. See doc/protocol/task.md and persona/inter.md.
+export function park(id, { note = "", by = "alpha" } = {}) {
+    const { data, body } = read(id);
+    data.status = "blocked";
+    data.labels = addUnique(Array.isArray(data.labels) ? data.labels : [], "parked");
+    data.updated = today();
+    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+    journey(id, { actor: by, kind: "park", summary: note || "parked for a user decision", ref: "parked" });
+    rebuildIndex();
+    return { id, status: "blocked", parked: true, note };
 }
 
 // Record a verification attempt as a structured event so metrics need not parse
@@ -324,13 +393,13 @@ export function report(id) {
 export function rebuildIndex() {
     mkdirSync(TICKETS_DIR, { recursive: true });
     const rows = list().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
-        .map((t) => `| ${t.id} | ${t.title} | ${t.status} | \`${t.actor || "-"}\` | ${t.claimedBy ? `\`${t.claimedBy}\`` : "-"} |`);
+        .map((t) => `| ${t.id} | ${t.title} | ${t.status} | ${t.level || "-"} | \`${t.actor || "-"}\` | ${t.claimedBy ? `\`${t.claimedBy}\`` : "-"} |`);
     const out = [
         "# Ticket Ledger", "",
         "The in-repo tracker. Generated by `hos ticket index` -- do not edit by",
         "hand. See `.hos/doc/protocol/task.md`.", "",
-        "| ID | Title | Status | Actor | Claim |", "| -- | ----- | ------ | ----- | ----- |",
-        ...(rows.length ? rows : ["| - | _none yet_ | - | - | - |"]), ""
+        "| ID | Title | Status | Level | Actor | Claim |", "| -- | ----- | ------ | ----- | ----- | ----- |",
+        ...(rows.length ? rows : ["| - | _none yet_ | - | - | - | - |"]), ""
     ].join("\n");
     writeFileAtomic(TICKETS_INDEX, out);
     return TICKETS_INDEX;

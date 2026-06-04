@@ -19,6 +19,7 @@ export function status() {
         ticketsDir: existsSync(TICKETS_DIR),
         specDir: existsSync(SPEC_DIR),
         open: tickets.filter((t) => !["verified", "superseded", "duplicate"].includes(t.status)).length,
+        parked: tickets.filter((t) => (t.labels || []).includes("parked")).length,
         total: tickets.length
     };
 }

@@ -40,6 +40,53 @@ created and moved with `hos ticket ...`. Each ticket holds:
 
 Use `hos ticket move <id> <status>` to transition and log the change.
 
+## Change levels and autonomy
+
+Every non-trivial ticket declares the change **level** it genuinely requires. The
+level sets the proof bar and the autonomy needed to proceed.
+
+| Level | User-facing | Scope | Required proof |
+| --- | --- | --- | --- |
+| L1 | LOW | Clarity, cleanup, naming, micro-edits; no behavior change. | Static check (`node --check`, lint) plus inspection. |
+| L2 | MEDIUM | Change a concrete behavior. | A test that fails on the regression. |
+| L3 | HIGH | Refactor where parity is not trivially provable. | The refactor parity protocol (`testing.md`) and/or full verification matched to the surface. |
+
+Alpha sets the level at planning: `hos ticket level <id> <low|medium|high>`.
+
+### Classify by need, never to dodge
+
+The level is set by what the change objectively requires: a behavior change is at
+least MEDIUM; a non-trivial refactor is HIGH. **Declaring a lower level to avoid
+proof or an autonomy escalation is a defect, not a shortcut** - rev fails the
+review when the declared level understates the diff. When the task needs an L3
+refactor, commit to L3; do not split it into pseudo-L1 edits to slip the gate.
+
+### Autonomy gate
+
+A *granted* autonomy level bounds what may proceed without asking. Granted = an
+explicit user grant (recorded by Inter) else `autonomy.default` (`hos.json`,
+default MEDIUM).
+
+- `required <= granted`: proceed.
+- `required > granted`: Inter asks the user for permission at that level, in their
+  language (LOW/MEDIUM/HIGH); on grant, proceed; otherwise narrow scope to fit or
+  park.
+- A pre-granted HIGH proceeds without further asking.
+
+Check mechanically with `hos autonomy gate <level>`; read or raise the grant with
+`hos autonomy show` / `hos autonomy set <level>`. The gate is never bypassed by
+down-classifying.
+
+### Budget and parking
+
+Alpha estimates a ticket's effort budget at planning (`hos ticket budget --estimate
+<n>`). Observed effort is the recorded actions on the ticket: captured runs plus
+work events. When observed reaches `budget.overrunFactor` x estimate (`hos.json`,
+default 1.6), the task is too large or unclear - Alpha parks it (`hos ticket
+park`), which makes it a `blocked` ticket carrying the `parked` label. Inter then
+drives the user's decision (continue, narrow, or stop); the ticket leaves `blocked`
+only on that decision. A park is never a silent retry.
+
 ## Required ticket content
 
 Each ticket must contain enough information for another agent to continue:

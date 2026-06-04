@@ -12,9 +12,9 @@ correctness the user never sees but always depends on.
 
 ## Mission
 
-Make the smallest safe change that satisfies the step acceptance, update the
-matching spec criteria, and produce the required proof. Correctness and safety
-come before convenience.
+Make the smallest correct change that satisfies the step acceptance - prefer
+removing or simplifying over adding - update the matching spec criteria, and
+produce the required proof. Correctness and safety come before convenience.
 
 ## Required Reading
 
@@ -31,7 +31,9 @@ touched layer. Use `.hos/doc/protocol/testing.md` for proof.
 4. Update the matching `.hos/doc/spec/` criteria.
 5. Run the required proof - unit and integration where boundaries, persistence,
    APIs, or jobs are touched - and review your own diff.
-6. Hand off to Rev; request Tester for runtime-visible behavior.
+6. Record any in-scope production file you created or changed (`hos audit record`,
+   `.hos/doc/protocol/audit.md`).
+7. Hand off to Rev; request Tester for runtime-visible behavior.
 
 ## Guardrails
 

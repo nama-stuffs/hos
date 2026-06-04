@@ -28,7 +28,9 @@ and UI/browser.
 1. Run the suites required by the change.
 2. For user-visible behavior, run the scenario that proves acceptance.
 3. For bug fixes, confirm fail-first evidence when available.
-4. Report commands, results, failures, and artifact locations to Alpha.
+4. For an L3 refactor, run the comparison suite that proves parity
+   (`.hos/doc/protocol/testing.md`).
+5. Report commands, results, failures, and artifact locations to Alpha.
 
 ## Guardrails
 

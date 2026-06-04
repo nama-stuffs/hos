@@ -1,6 +1,6 @@
 {
   "hos": {
-    "version": "0.1.0-beta"
+    "version": "0.2.0-beta"
   },
   "project": {
     "name": "",
@@ -9,6 +9,20 @@
   },
   "tickets": {
     "prefix": "T"
+  },
+  "autonomy": {
+    "default": "medium"
+  },
+  "audit": {
+    "include": [],
+    "exclude": []
+  },
+  "budget": {
+    "overrunFactor": 1.6
+  },
+  "language": {
+    "harness": "en",
+    "user": "auto"
   },
   "runtime": {
     "install": "",

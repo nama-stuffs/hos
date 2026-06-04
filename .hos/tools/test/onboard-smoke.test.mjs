@@ -29,9 +29,7 @@ function copySource(dest) {
             return rel === ""
                 || rel === "AGENTS.md"
                 || rel === ".hos"
-                || (rel.startsWith(".hos/")
-                    && !rel.startsWith(".hos/reports")
-                    && (!rel.startsWith(".hos/task/") || rel === ".hos/task/README.md"));
+                || (rel.startsWith(".hos/") && !rel.startsWith(".hos/reports"));
         }
     });
 }
@@ -116,7 +114,7 @@ test("adopt preserves existing project docs, ignore rules, and harness memory", 
         assert.equal(readFileSync(join(dir, "README.md"), "utf8"), "# Host Project\n");
         assert.equal(readFileSync(join(dir, "DESIGN.md"), "utf8"), "# Existing Design\n");
         assert.equal(readFileSync(join(dir, "CLAUDE.md"), "utf8"), "See AGENTS.md.\n");
-        assert.match(readFileSync(join(dir, ".gitignore"), "utf8"), /dist\/[\s\S]*\.hos\/task\/\*/);
+        assert.match(readFileSync(join(dir, ".gitignore"), "utf8"), /dist\/[\s\S]*\.hos\/reports\//);
         assert.equal(existsSync(localPolicy), true);
         assert.equal(JSON.parse(run(dir, ["doctor"])).ok, true);
     } finally {

@@ -32,7 +32,8 @@ Every harness audit must challenge one meaningful assumption, such as:
 - this document is still the right owner.
 
 Use repository evidence first. If the challenge is valid, make the change or
-create a scoped follow-up.
+create a scoped follow-up. The `self-optimization` task runs this standard as a
+procedure (`hos task show self-optimization`).
 
 ## System criteria
 

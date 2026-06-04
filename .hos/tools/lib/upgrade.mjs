@@ -15,7 +15,7 @@ import * as spec from "./spec.mjs";
 // Whole directories that belong to the framework, plus individual framework
 // files that live beside project state. Everything else under .hos/ is the
 // project's and is left untouched.
-const FRAMEWORK_DIRS = ["persona", "doc/protocol", "doc/audit", "tools"];
+const FRAMEWORK_DIRS = ["persona", "doc/protocol", "doc/audit", "task", "tools"];
 const FRAMEWORK_FILES = [
     "agents.template.md",
     "doc/accelerators.md",
@@ -23,7 +23,6 @@ const FRAMEWORK_FILES = [
     "install.md",
     "memory/README.md",
     "tickets/README.md",
-    "task/README.md",
     "doc/spec/README.md"
 ];
 
@@ -121,7 +120,7 @@ export function upgrade({ from = "", apply = false, force = false } = {}) {
         changes: { add: 0, update: 0, unchanged: 0 },
         plan: changed,
         applied: false,
-        preserved: "tickets, memory, spec, bench, hos.json values, DESIGN.md, registry, reports, task"
+        preserved: "tickets, memory, spec, bench, audit ledger, hos.json values, DESIGN.md, registry, reports"
     };
     for (const item of plan) {
         result.changes[item.action]++;

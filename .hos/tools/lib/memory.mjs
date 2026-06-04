@@ -3,13 +3,12 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { FRICTION_DIR, MEMORY_DIR, MEMORY_INDEX, POLICY_DIR } from "./paths.mjs";
-import { slugify, today, writeFileAtomic } from "./util.mjs";
+import { slugify, today, tokenize, writeFileAtomic } from "./util.mjs";
 import * as fm from "./frontmatter.mjs";
 
-const STOPWORDS = new Set([
-    "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with", "is",
-    "are", "be", "use", "using", "should", "must", "always", "never", "when"
-]);
+// tokenize lives in util.mjs (shared with task matching); re-exported so callers
+// and tests that read it from the memory store keep working.
+export { tokenize };
 
 function ensureDirs() {
     for (const dir of [MEMORY_DIR, POLICY_DIR, FRICTION_DIR]) {
@@ -19,10 +18,6 @@ function ensureDirs() {
 
 function readDir(dir) {
     return existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "README.md") : [];
-}
-
-export function tokenize(text) {
-    return [...new Set((text.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 2 && !STOPWORDS.has(w)))];
 }
 
 // Load every policy as { id, title, scope, triggers, status, body, file }.

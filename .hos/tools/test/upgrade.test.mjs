@@ -68,7 +68,7 @@ test("upgrade dry-run reports the stale framework file and does not write", () =
         const plan = run(dir, ["upgrade", "--from", repoRoot]);
         assert.equal(plan.ok, true);
         assert.equal(plan.applied, false);
-        assert.equal(plan.fromVersion, "0.1.0-beta");
+        assert.equal(plan.fromVersion, "0.2.0-beta");
         assert.equal(plan.currentVersion, "0.0.1");
         assert.ok(plan.changes.update >= 1, "at least one framework file differs");
         assert.ok(plan.plan.some((p) => p.file === "persona/architect.md" && p.action === "update"));
@@ -92,7 +92,7 @@ test("upgrade --apply restores framework files, bumps version, preserves project
 
         // Version bumped, project values kept.
         const settings = JSON.parse(readFileSync(join(dir, ".hos", "hos.json"), "utf8"));
-        assert.equal(settings.hos.version, "0.1.0-beta");
+        assert.equal(settings.hos.version, "0.2.0-beta");
         assert.equal(settings.project.name, "Upgrade Target");
 
         // Project-owned state untouched.

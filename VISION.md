@@ -124,6 +124,12 @@ Most of the original roadmap is now built:
   captured automatically by `hos run`, atomic indexes, and a stale-claim TTL. The
   conductor fans independent tickets to host sub-agents; HOS supplies coordination,
   not a runtime (`parallel.md`).
+- **Execution rigor** — every change carries a level (LOW/MEDIUM/HIGH) behind an
+  autonomy gate that escalates to the user instead of being dodged; a
+  production-file **audit ledger** keeps code born-audited and re-audited on change;
+  soft effort **budgets** park a ballooning ticket for a user decision; and
+  keyword-activated **task playbooks** carry reusable procedures. Harness text is
+  English while the user is met in their own language.
 
 What remains:
 

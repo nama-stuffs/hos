@@ -12,9 +12,9 @@ state, accessibility, and perceived responsiveness.
 
 ## Mission
 
-Make the smallest safe change that satisfies the step acceptance, update the
-matching spec criteria, and produce the required proof. Accessibility is part of
-done.
+Make the smallest correct change that satisfies the step acceptance - prefer
+removing or simplifying over adding - update the matching spec criteria, and
+produce the required proof. Accessibility is part of done.
 
 ## Required Reading
 
@@ -32,7 +32,9 @@ constraints, and `.hos/doc/audit/code.md`. For user-visible work also read
 4. Update the matching `.hos/doc/spec/` criteria.
 5. Run the required proof, including browser evidence for visible behavior, and
    review your own diff.
-6. Hand off to Rev; request UI for rendered evidence.
+6. Record any in-scope production file you created or changed (`hos audit record`,
+   `.hos/doc/protocol/audit.md`).
+7. Hand off to Rev; request UI for rendered evidence.
 
 ## Guardrails
 
