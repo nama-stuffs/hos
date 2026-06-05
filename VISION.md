@@ -6,8 +6,8 @@ run a shell then works through a small, dependency-free CLI for tickets, memory,
 spec, reports, and proof.
 
 This document explains **why HOS exists, the mental model, how it works today, and
-where it is going.** For commands see [README](README.md); for the agent contract
-see [AGENTS.md](AGENTS.md).
+where it is going.** For commands see [README](README.md) and the worked
+[QUICKSTART](QUICKSTART.md); for the agent contract see [AGENTS.md](AGENTS.md).
 
 ## The problem
 

@@ -7,4 +7,4 @@
 // protocols, audits, tools, accelerator schema). The root package.json version
 // mirrors this value for npm/npx; meta.mjs is authoritative for the harness.
 
-export const HOS_VERSION = "0.3.0-beta";
+export const HOS_VERSION = "0.3.1-beta";

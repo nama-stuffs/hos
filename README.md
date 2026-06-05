@@ -7,7 +7,8 @@ production audit ledger, task playbooks, background sessions, retrospective
 metrics, self-updates, and proof.
 
 New here? Read [VISION.md](VISION.md) for the why, the mental model, how it works
-today, and the roadmap.
+today, and the roadmap. [QUICKSTART.md](QUICKSTART.md) walks one real ticket end to
+end (plus the audit, background, and self-update flows).
 
 **Status: beta** - the layout and CLI may change before 1.0. HOS is exercised by
 the [HOS Lab](https://github.com/nama-stuffs/hos-lab), a black-box benchmark that

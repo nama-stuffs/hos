@@ -133,7 +133,7 @@ ${sections}${optimizationHtml(m.metrics)}</body></html>`;
 export function render(sessionId = null, formats = ["md", "html"]) {
     const id = sessionId || latest();
     if (!id) {
-        throw new Error("no session to report on");
+        throw new Error("no session to report on - open one with `hos session open \"<request>\"` (Inter does this at intake), or render a single ticket with `hos ticket report <id>`");
     }
 
     const m = model(id);
