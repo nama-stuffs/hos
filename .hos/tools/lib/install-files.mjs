@@ -12,6 +12,8 @@ const README_MD = join(REPO_ROOT, "README.md");
 
 const HOS_GITIGNORE_BLOCK = `# HOS local artifacts
 .hos/.cache/
+.hos/.baseline/
+.hos/msg/
 .hos/reports/
 .hos/tickets/*/evidence/
 .hos/tickets/*/claim.json

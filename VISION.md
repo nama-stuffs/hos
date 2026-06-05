@@ -130,6 +130,13 @@ Most of the original roadmap is now built:
   soft effort **budgets** park a ballooning ticket for a user decision; and
   keyword-activated **task playbooks** carry reusable procedures. Harness text is
   English while the user is met in their own language.
+- **Long-term memory, background sessions, and self-update** — Inter and Alpha gain
+  typed, namespaced memory (policies, facts, episodes) beyond say-once rules; a long
+  run splits into an on-demand foreground Inter and a background Alpha driven by
+  `hos wait` (cost per wake, not per minute), coordinating through an inbox with
+  notifications at milestones; and `hos upgrade` three-way merges a new release -
+  keeping the project's own framework edits, surfacing conflicts, and rolling back
+  from a local snapshot.
 
 What remains:
 

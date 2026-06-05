@@ -1,6 +1,6 @@
 {
   "hos": {
-    "version": "0.2.0-beta"
+    "version": "0.3.0-beta"
   },
   "project": {
     "name": "",
@@ -23,6 +23,17 @@
   "language": {
     "harness": "en",
     "user": "auto"
+  },
+  "wait": {
+    "timeoutMinutes": 30
+  },
+  "notify": {
+    "command": "",
+    "events": ["parked", "completed"]
+  },
+  "upgrade": {
+    "policy": "manual",
+    "remote": "https://raw.githubusercontent.com/nama-stuffs/hos/main/.hos/tools/lib/meta.mjs"
   },
   "runtime": {
     "install": "",

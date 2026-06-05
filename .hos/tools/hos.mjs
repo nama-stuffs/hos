@@ -6,7 +6,7 @@
 //   hos doctor                       # self-check
 //   hos init  --name <n> [--desc ..] # set up a new project
 //   hos adopt --name <n>             # bind to an existing surrounding project
-//   hos upgrade --from <path> [--apply]  # re-sync framework files from a newer release
+//   hos upgrade --from <path> [--apply] | --check [--remote <url>] | --restore [<snapshot>]  # 3-way merge re-sync, GitHub check, or roll back
 //   hos ticket create "<title>" [--report ..] [--acceptance ..] [--actor frontend+ux] [--level low|medium|high]
 //   hos ticket list [--claimable] | show <id> | move <id> <status> | link <id> [--parent ..] | report <id> | index
 //   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail | level <id> <low|medium|high> | log <id> --kind .. | thread <id>
@@ -15,12 +15,15 @@
 //   hos audit record <path> [--by ..] [--ticket ..] | status [<path>] | check | prune  # production-file audit ledger (doc/protocol/audit.md)
 //   hos task list | match "<request>" | show <name>   # keyword-activated reusable playbooks (.hos/task/)
 //   hos language show | set [--harness <code>] [--user <code|auto>]   # harness vs user-facing language (doc/protocol/language.md)
+//   hos wait [--timeout <min>] [--to alpha]            # block until a ledger/inbox event or idle timeout (background Alpha heartbeat)
+//   hos msg send "<text>" [--to alpha] | list | drain  # async inbox between foreground Inter and background Alpha
+//   hos notify <event> [--message ..] [--ticket ..]    # fire a notification (notify.command) or record to the sink
 //   hos run <id> [--by ..] -- <command>          # capture a command into the ticket deep log
 //   hos dispatch <id> [--lenses frontend+ux] [--by ..] # assemble a worker brief (the host spawns; HOS does not)
 //   hos retro <id> --outcome <a,b,..> [--by ..] [--note ..]  # record a retrospective decision
 //   hos metrics ticket <id> | session [<id>]    # diagnostic delivery metrics from the journey
 //   hos spec   add "<title>" [--area ..] | list | criteria | lint | index
-//   hos memory search "<text>" [--scope ..] | add "<title>" [..] | friction .. | index
+//   hos memory search "<text>" [--scope ..] [--kind ..] | add "<title>" [--kind policy|fact|episode] [--scope persona/<lens>|area/<x>] | friction .. | index
 //   hos session open "<request>" | attach <session> <ticket> [--reason ..] | close <session> [--summary ..] | list
 //   hos report [<session>] [--format md,html]   # structured session report
 //   hos graph impact <file-or-symbol>           # local impact analysis
@@ -43,6 +46,9 @@ import * as autonomy from "./lib/autonomy.mjs";
 import * as audit from "./lib/audit.mjs";
 import * as task from "./lib/task.mjs";
 import * as language from "./lib/language.mjs";
+import * as msg from "./lib/msg.mjs";
+import { waitForEvent } from "./lib/wait.mjs";
+import { notify as doNotify } from "./lib/notify.mjs";
 import * as spec from "./lib/spec.mjs";
 import * as session from "./lib/session.mjs";
 import { render } from "./lib/report.mjs";
@@ -56,7 +62,8 @@ import { contribute } from "./lib/contribute.mjs";
 import { version } from "./lib/version.mjs";
 import { status } from "./lib/status.mjs";
 import { doctor } from "./lib/doctor.mjs";
-import { upgrade as runUpgrade } from "./lib/upgrade.mjs";
+import { upgrade as runUpgrade, checkUpdate, restoreBaseline } from "./lib/upgrade.mjs";
+import * as baseline from "./lib/baseline.mjs";
 import { patchSettings } from "./lib/config.mjs";
 import { detectProjectCommands, ensureGeneratedFiles, isSourceRepo } from "./lib/install-files.mjs";
 import { HOS_VERSION } from "./lib/meta.mjs";
@@ -100,6 +107,8 @@ function setup(a, adopted) {
     ledger.rebuildIndex();
     spec.rebuildIndex();
     memory.rebuildIndex();
+    // Capture the install-time framework as the merge base for future upgrades.
+    baseline.snapshot("synced");
     const out = {
         ok: true,
         project: str(f.name),
@@ -142,8 +151,17 @@ const commands = {
     init: (sub, a) => setup([sub, ...a].filter(Boolean), false),
     adopt: (sub, a) => setup([sub, ...a].filter(Boolean), true),
 
-    upgrade(sub, a) {
+    async upgrade(sub, a) {
         const f = flags([sub, ...a].filter((x) => x !== undefined));
+        if (f.check) {
+            print(await checkUpdate({ remote: str(f.remote, null) }));
+            return;
+        }
+        if (f.restore) {
+            const r = restoreBaseline(f.restore === true ? null : str(f.restore));
+            print(r);
+            process.exit(r.ok ? 0 : 1);
+        }
         const r = runUpgrade({ from: str(f.from, ""), apply: Boolean(f.apply), force: Boolean(f.force) });
         print(r);
         process.exit(r.ok ? 0 : 1);
@@ -233,10 +251,10 @@ const commands = {
     memory: {
         search(a) {
             const f = flags(a);
-            const hits = memory.search(f._.join(" "), { scope: str(f.scope, null) });
+            const hits = memory.search(f._.join(" "), { scope: str(f.scope, null), kind: str(f.kind, null) });
             print(hits.length
-                ? hits.map((p) => ({ id: p.id, title: p.title, scope: p.scope, body: p.body }))
-                : "no matching policies");
+                ? hits.map((p) => ({ id: p.id, kind: p.kind, title: p.title, scope: p.scope, body: p.body }))
+                : "no matching memory");
         },
         add(a) {
             const f = flags(a);
@@ -244,6 +262,7 @@ const commands = {
                 title: f._.join(" "),
                 body: str(f.body),
                 scope: str(f.scope),
+                kind: str(f.kind, "policy"),
                 triggers: f.trigger ? str(f.trigger).split(",") : [],
                 source: str(f.source, "user")
             }));
@@ -337,6 +356,29 @@ const commands = {
         }
     },
 
+    msg: {
+        send(a) {
+            const f = flags(a);
+            print(msg.send({ text: f._.join(" "), to: str(f.to, "alpha"), by: str(f.by, "inter") }));
+        },
+        list: (a) => print(msg.list(str(flags(a).to, null))),
+        drain: (a) => print(msg.drain(str(flags(a).to, null)))
+    },
+
+    async wait(sub, a) {
+        const f = flags([sub, ...a].filter((x) => x !== undefined));
+        print(await waitForEvent({
+            timeoutMinutes: f.timeout !== undefined ? Number(str(f.timeout)) : null,
+            to: str(f.to, null),
+            pollMs: f["poll-ms"] !== undefined ? Number(str(f["poll-ms"])) : undefined
+        }));
+    },
+
+    notify(sub, a) {
+        const f = flags([sub, ...a].filter((x) => x !== undefined));
+        print(doNotify({ event: f._[0] || "note", message: str(f.message), ticket: str(f.ticket) }));
+    },
+
     bench(sub, a) {
         const f = flags([sub, ...a].filter((x) => x !== undefined));
         if (f.baseline) {
@@ -424,7 +466,13 @@ function composePrompt(spec, policyText) {
     }
 
     const parts = [readFileSync(AGENTS_MD, "utf8")];
-    const block = memory.renderPolicyBlock(memory.search(policyText || lenses.join(" ")));
+    // Memory injected into the prompt = keyword matches UNION each lens's standing
+    // persona-scoped memory (so architect+frontend sees both namespaces), deduped.
+    const keywordHits = memory.search(policyText || lenses.join(" "));
+    const personaMem = lenses.flatMap((lens) => memory.byScope(`persona/${lens}`));
+    const seen = new Set();
+    const union = [...keywordHits, ...personaMem].filter((p) => !seen.has(p.id) && seen.add(p.id));
+    const block = memory.renderPolicyBlock(union);
     if (block) {
         parts.push(block);
     }

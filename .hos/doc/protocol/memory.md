@@ -35,6 +35,36 @@ Rationale: matches the existing public contract.
   over-matches unrelated work.
 - `status` is `active`, `superseded`, or `retired`.
 
+## Memory kinds
+
+The store holds typed entries. `kind` (frontmatter, default `policy`) routes how an
+entry is used; all kinds share the retrieval path.
+
+| Kind | Holds | Written by |
+| --- | --- | --- |
+| `policy` | A durable rule, preference, or correction (say-once). | Inter, retrospective. |
+| `fact` | Durable project knowledge (e.g. "auth lives in `src/auth`"). | Inter, Alpha. |
+| `episode` | A short summary of a finished session or ticket. | The retrospective, on closure. |
+| `harness-change` | The intent behind a harness modification. | The retrospective; replayed on `hos upgrade` (`upgrade.md`). |
+
+Add any kind with `hos memory add "<title>" --kind <kind>`. Facts and episodes give
+Inter and Alpha long-term memory beyond rules; `hos memory search --kind` narrows to
+one type.
+
+## Namespaces (scope)
+
+`scope` is a namespace path that routes an entry to where it applies:
+
+- empty / `project` - global: applies everywhere.
+- `area/<name>` - a product or code area (e.g. `area/auth`).
+- `persona/<lens>` - craft knowledge for one lens (e.g. `persona/frontend`).
+
+A composed persona receives its keyword matches **union** the standing memory of
+each of its lenses' namespaces - so `compose architect+frontend` sees both
+`persona/architect` and `persona/frontend` entries. Global entries always apply.
+Keep most memory global; reserve `persona/*` for genuinely craft-specific rules, and
+let the curator dedupe across namespaces.
+
 ## When to record
 
 Record a policy when a rule becomes reusable:

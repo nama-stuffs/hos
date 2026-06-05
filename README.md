@@ -2,16 +2,17 @@
 
 HOS is a file-based agent harness. Drop `.hos/` and `AGENTS.md` into a project;
 agents then use the local `hos` CLI for tickets, an acceptance-criteria spec,
-say-once memory, parallel dispatch, change-level autonomy, a production audit
-ledger, task playbooks, retrospective metrics, upgrades, and proof.
+say-once and long-term memory, parallel dispatch, change-level autonomy, a
+production audit ledger, task playbooks, background sessions, retrospective
+metrics, self-updates, and proof.
 
 New here? Read [VISION.md](VISION.md) for the why, the mental model, how it works
 today, and the roadmap.
 
 **Status: beta** - the layout and CLI may change before 1.0. HOS is exercised by
 the [HOS Lab](https://github.com/nama-stuffs/hos-lab), a black-box benchmark that
-scores install, adopt, upgrade, orchestration, retrieval, autonomy, audit, tasks,
-and process efficiency.
+scores install, adopt, upgrade, orchestration, retrieval, memory, autonomy, audit,
+tasks, and process efficiency.
 
 Install prompt:
 
@@ -36,7 +37,8 @@ npx @nama-stuffs/hos adopt --name "<project>"   # existing project
 - `.hos/doc/protocol/` defines the workflow (orchestration, parallel, spec,
   retrospective, upgrade, ...).
 - `.hos/tickets/` is the ticket ledger: a terse surface plus a deep command log.
-- `.hos/memory/` stores say-once policies.
+- `.hos/memory/` stores typed long-term memory: policies, facts, and episodes,
+  namespaced by scope (project, `area/<x>`, `persona/<lens>`).
 - `.hos/doc/spec/` is the living functional spec, written as acceptance criteria.
 - `.hos/task/` holds keyword-activated task playbooks (`hos task match`).
 - `.hos/audit/ledger.json` tracks audited production files.
@@ -66,6 +68,11 @@ node .hos/tools/hos.mjs ticket park <id> --note "<why>"
 node .hos/tools/hos.mjs audit check
 node .hos/tools/hos.mjs task match "<request>"
 node .hos/tools/hos.mjs language show
+node .hos/tools/hos.mjs memory add "<title>" --kind fact --scope area/<x>
+node .hos/tools/hos.mjs wait --timeout 30
+node .hos/tools/hos.mjs msg send "<text>" --to alpha
+node .hos/tools/hos.mjs notify completed --message "<...>"
+node .hos/tools/hos.mjs upgrade --check
 ```
 
 ## Test Gate

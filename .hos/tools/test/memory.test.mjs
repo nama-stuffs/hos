@@ -75,6 +75,35 @@ test("scope narrows the result set", () => {
     cleanup();
 });
 
+test("kind defaults to policy; non-policy kinds round-trip under a kind-prefixed id", () => {
+    const f1 = memory.addPolicy({ title: "TEST plain rule", body: "x", triggers: ["plainrule"] });
+    const f2 = memory.addPolicy({ title: "TEST auth fact", body: "auth lives in src/auth", kind: "fact", scope: "area/auth", triggers: ["authfact"] });
+    created.push(f1, f2);
+    assert.equal(memory.search("plainrule").find((p) => p.title === "TEST plain rule").kind, "policy");
+    assert.equal(memory.search("authfact").find((p) => p.title === "TEST auth fact").kind, "fact");
+    assert.ok(f2.includes("fact-test-auth-fact"), "non-policy kinds carry a kind prefix in the filename");
+    cleanup();
+});
+
+test("search --kind narrows to one memory type", () => {
+    created.push(memory.addPolicy({ title: "TEST kindfilter rule", body: "x", triggers: ["kindfilter"] }));
+    created.push(memory.addPolicy({ title: "TEST kindfilter fact", body: "y", kind: "fact", triggers: ["kindfilter"] }));
+    const facts = memory.search("kindfilter", { kind: "fact" });
+    assert.ok(facts.every((p) => p.kind === "fact"));
+    assert.ok(facts.some((p) => p.title === "TEST kindfilter fact"));
+    assert.ok(!facts.some((p) => p.title === "TEST kindfilter rule"));
+    cleanup();
+});
+
+test("byScope returns a namespace's standing memory regardless of keywords", () => {
+    created.push(memory.addPolicy({ title: "TEST architect craft", body: "prefer composition", scope: "persona/architect", triggers: ["zzznomatch"] }));
+    created.push(memory.addPolicy({ title: "TEST frontend craft", body: "tokens only", scope: "persona/frontend", triggers: ["zzznomatch"] }));
+    const arch = memory.byScope("persona/architect");
+    assert.ok(arch.some((p) => p.title === "TEST architect craft"));
+    assert.ok(!arch.some((p) => p.title === "TEST frontend craft"), "byScope is namespace-isolated");
+    cleanup();
+});
+
 test("unrelated text returns no policy", () => {
     created.push(memory.addPolicy({ title: "TEST payments rule", body: "z", scope: "code", triggers: ["payment", "invoice"] }));
     assert.equal(memory.search("change the footer background color").length, 0);

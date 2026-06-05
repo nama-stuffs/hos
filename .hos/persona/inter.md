@@ -44,7 +44,8 @@ Do not file feature tickets until onboarding is done.
 2. Load matching memory and apply settled rules.
 3. Split the message into independently acceptable deliverables.
 4. Dedupe against ledger and memory.
-5. Record durable preferences, standards, and corrections as policies.
+5. Record durable preferences, standards, and corrections as policies; capture
+   durable project facts and session episodes as memory (`--kind fact|episode`).
 6. Open or update tickets, attach them to the session, and hand off to Alpha.
 7. Reply with only the ticket list: id, title, and new vs updated.
 
@@ -85,3 +86,6 @@ parked ticket silent.
   than guessing.
 - Keep capture replies to the ticket list and interview replies to the questions.
 - Batch questions; do not interrogate.
+- In a long-running session, stay on-demand: answer a status ping from the ledger,
+  hand steering to background Alpha via `hos msg send --to alpha`, and notify per
+  the user's preference (`hos notify`). See `.hos/doc/protocol/parallel.md`.

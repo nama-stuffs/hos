@@ -17,9 +17,11 @@ not a hierarchy:
 - **Workers** are leaf sub-agents. Each runs a composed persona on a claimed
   ticket and spawns nothing.
 
-There is no separate long-lived "Alpha session" beneath Inter; the same session
-switches voice. A sub-agent Alpha could not launch workers, so the conductor must
-be the top level.
+For short, interactive work the conductor is one session that switches voice
+(synchronous mode). For a **long-running session** the two roles split into two
+top-level sessions - a foreground Inter and a background Alpha - coordinating
+through the ledger and the inbox (below). Either way the conductor is top level: a
+sub-agent Alpha could not launch workers.
 
 ## Two layers per ticket
 
@@ -87,6 +89,33 @@ the briefing but carries a growing context. Balance the two:
 
 Rule of thumb: group by kinship first, cap how many tickets one worker takes, and
 restart when the carried context outweighs the briefing a reuse would save.
+
+## Long-running sessions: foreground Inter, background Alpha
+
+A multi-hour run does not keep an agent "awake" burning credits. The two roles
+separate:
+
+- **Background Alpha** runs a `wait -> act` loop: `hos wait` blocks until a ledger
+  change, an inbox message, or an idle timeout (`wait.timeoutMinutes`, default 30),
+  then Alpha integrates, dispatches the next step, and waits again. Between wakes
+  the agent does not think, so cost is per wake, not per minute. Alpha checkpoints
+  and may restart fresh when its context grows (the reuse-vs-fresh balance applies
+  to Alpha itself).
+- **Foreground Inter** is on-demand: the user pings ("status?"), Inter reads the
+  ledger (`hos status`, `hos ticket list`) and replies in the user's language, then
+  is idle - no cost - until the next message. Inter stays read-mostly so it never
+  races Alpha.
+- **The inbox** (`hos msg send --to alpha`) is the async bus: Inter hands Alpha a
+  steering message; Alpha's `hos wait` returns on it and `hos msg drain` reads it.
+- **Notifications** fire at hook points - a parked ticket, a settled session, a
+  finished run - via `hos notify`, which runs `notify.command` if configured, else
+  records to the sink seen on the next ping.
+
+The one piece the harness does not supply is the **runner** that re-invokes
+background Alpha across the session. Stated as a capability, not a vendor feature:
+the host must be able to run a blocking command, keep a background session alive
+across wakes, and spawn workers. Claude Code and Codex satisfy this today; a host
+that cannot degrades to synchronous mode.
 
 ## Concurrency rules
 

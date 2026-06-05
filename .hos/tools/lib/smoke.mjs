@@ -172,17 +172,19 @@ function upgradeScenario(dir, check) {
     const aged = JSON.parse(readFileSync(settingsPath, "utf8"));
     aged.hos.version = "0.0.1";
     writeFileSync(settingsPath, JSON.stringify(aged, null, 2));
-    writeFileSync(join(dir, ".hos", "persona", "architect.md"), "STALE\n");
+    // Remove a shipped framework file: the three-way merge classifies it "add" and
+    // restores it (a locally MODIFIED file would instead be kept - see upgrade.md).
+    rmSync(join(dir, ".hos", "persona", "ui.md"), { force: true });
 
     const ticket = runHos(dir, ["ticket", "create", "Keep me through upgrade"]);
 
     const plan = runHos(dir, ["upgrade", "--from", REPO_ROOT]);
     check(plan.ok && plan.applied === false, "upgrade dry-run reports a plan without writing");
-    check(plan.plan.some((p) => p.file === "persona/architect.md"), "dry-run flags the stale framework file");
+    check(plan.plan.some((p) => p.file === "persona/ui.md" && p.action === "add"), "dry-run flags the missing framework file");
 
     const applied = runHos(dir, ["upgrade", "--from", REPO_ROOT, "--apply"]);
     check(applied.applied === true, "upgrade --apply runs");
-    check(!readFileSync(join(dir, ".hos", "persona", "architect.md"), "utf8").includes("STALE"), "framework file restored");
+    check(existsSync(join(dir, ".hos", "persona", "ui.md")), "missing framework file restored");
     check(JSON.parse(readFileSync(settingsPath, "utf8")).hos.version === plan.fromVersion, "hos.version bumped to the release");
     check(existsSync(join(dir, ".hos", "tickets", ticket.id, "ticket.md")), "ticket preserved through upgrade");
     check(runHos(dir, ["doctor"]).ok, "doctor passes after upgrade");

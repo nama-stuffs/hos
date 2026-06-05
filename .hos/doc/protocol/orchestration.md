@@ -111,6 +111,8 @@ HOS is files plus the `hos` CLI. A step is executed by the agent reading HOS:
 - `hos compose <lenses>` produces the composed prompt.
 - The step uses local files and `hos` subcommands; no per-agent branch is
   required.
+- A long-running session splits Inter (foreground, on-demand) from Alpha
+  (background, driven by `hos wait`); see `parallel.md`.
 
 ## Completion bar
 

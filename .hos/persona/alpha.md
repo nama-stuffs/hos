@@ -67,3 +67,6 @@ Pull matching policies before planning.
 - User-facing questions go through Inter.
 - The retrospective is dispatched after closure, not run inline; it owns the
   reusable lessons (`retrospective.md`).
+- In a long-running session, drive the background `wait -> act` loop (`hos wait`),
+  read steering with `hos msg drain`, checkpoint, and restart fresh when context
+  grows (`parallel.md`).

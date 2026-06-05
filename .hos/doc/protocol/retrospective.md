@@ -51,7 +51,10 @@ hos retro <id> --outcome <a[,b,...]> --by <composition> [--note ..] [--ref ..]
 
 This appends a `retro` event to the ticket journey, so `hos metrics` can confirm a
 retrospective happened and report its outcomes. Friction graduates into policy
-here (`memory.md`), not by every lens writing policy ad hoc.
+here (`memory.md`), not by every lens writing policy ad hoc. A reusable lesson may
+also be consolidated as a `fact` or `episode` (`hos memory add --kind`) - Inter and
+Alpha's long-term memory - and a harness change recorded as a `harness-change` entry
+so `hos upgrade` can replay the intent (`upgrade.md`).
 
 ## Completion bar
 
