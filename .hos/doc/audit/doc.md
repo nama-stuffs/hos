@@ -3,7 +3,7 @@
 ## Purpose
 
 This standard audits Harness Markdown. A document passes when it helps an agent
-act correctly with minimal reading.
+act correctly with minimal reading. Every change to a document follows it.
 
 ## Outcomes
 
@@ -41,6 +41,18 @@ Markdown must be clean:
 - Link to the owning document instead of restating its rule.
 - Use tables only for mappings, states, owners, or gates.
 
+## Voice
+
+Write plain, direct assertions:
+
+- State the action to take. Reach for a prohibition only when the constraint itself
+  is the rule and no positive phrasing reads clearer.
+- Use the active voice and name the actor.
+- Use plain punctuation: hyphens, not em dashes.
+- Vary sentence length, and skip the predictable machine cadence: throat-clearing
+  openers, meta-commentary, rule-of-three lists, "not X, but Y" contrasts, and
+  one-word dramatic fragments.
+
 ## Objective requirements
 
 Documents should require verifiable behavior, not only intent. Replace vague
@@ -69,6 +81,8 @@ tied to an observable signal.
 | Hidden exception | Mentions a rule but not bypass or escalation. |
 | Mixed concerns | Policy, memory, routing, and validation are collapsed together. |
 | Redundant wording | A sentence can be deleted without changing action or validation. |
+| Correction by negation | States what not to do where a positive instruction reads clearer. |
+| Machine cadence | Throat-clearing, meta-commentary, rule-of-three, "not X but Y", dramatic fragments, or em-dash crutch. |
 
 ## Positive patterns
 

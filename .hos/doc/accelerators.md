@@ -20,9 +20,9 @@ policy.
 
 ## Rules
 
-- No accelerator is required for core HOS.
-- Do not install one without user approval.
-- Do not add entries that require secrets or hosted services.
+- Core HOS runs with zero accelerators.
+- Install one only after explicit user approval.
+- Keep entries free of secrets and hosted services.
 - Keep a local fallback for every accelerated capability.
 
 Harness improvements can become upstream contribution bundles with

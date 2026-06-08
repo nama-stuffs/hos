@@ -14,17 +14,30 @@ the [HOS Lab](https://github.com/nama-stuffs/hos-lab), a black-box benchmark tha
 scores install, adopt, upgrade, orchestration, retrieval, memory, autonomy, audit,
 tasks, and process efficiency.
 
-Install prompt:
+## Install
+
+HOS is a **drop-in harness**: a `.hos/` folder you copy into your project and drive
+with `node .hos/tools/hos.mjs`. Install it by copying the files in.
+
+Tell your coding agent:
 
 ```text
-install nama-stuffs/hos in this project
+Add the nama-stuffs/hos harness to this project by copying its files in: clone
+https://github.com/nama-stuffs/hos to a temp folder, copy its .hos/ directory and
+AGENTS.md into this project root, then run
+node .hos/tools/hos.mjs adopt --name "<project>" and follow .hos/bootstrap.md.
 ```
 
-An agent following that prompt copies `.hos/` per [.hos/bootstrap.md](.hos/bootstrap.md),
-then runs the install / adopt / run flow in [.hos/install.md](.hos/install.md).
+Or by hand:
 
-HOS is a drop-in: there is nothing to install from a registry. You can also run the
-CLI directly with `node .hos/tools/hos.mjs <command>`.
+```bash
+git clone --depth 1 https://github.com/nama-stuffs/hos /tmp/hos
+cp -r /tmp/hos/.hos /tmp/hos/AGENTS.md .     # PowerShell: Copy-Item -Recurse /tmp/hos/.hos,/tmp/hos/AGENTS.md .
+node .hos/tools/hos.mjs adopt --name "<project>"   # a brand-new empty project: use init
+```
+
+[.hos/bootstrap.md](.hos/bootstrap.md) covers merging an existing `AGENTS.md` and
+`.gitignore`; [.hos/install.md](.hos/install.md) covers the adopt and run flow.
 
 ## Core
 

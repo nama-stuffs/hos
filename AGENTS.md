@@ -26,6 +26,7 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 5. Surface reusable decisions and friction for the retrospective.
 6. Prefer the smallest correct change; deletion and simplification are wins.
 7. When a request matches a task playbook (`hos task match`), load and follow it.
+8. Editing a document follows `.hos/doc/audit/doc.md`: plain, positive assertions.
 
 ## Personas
 
