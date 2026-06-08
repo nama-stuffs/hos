@@ -104,3 +104,18 @@ test("init and adopt refuse in the HOS source repo, which reports source mode", 
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test("test and smoke are source-only; an adopted target redirects them to doctor", () => {
+    const dir = tempDir("source-gates");
+    try {
+        cpSync(join(repoRoot, ".hos"), join(dir, ".hos"), { recursive: true });
+        cpSync(join(repoRoot, "AGENTS.md"), join(dir, "AGENTS.md"));
+        run(dir, ["init", "--name", "Adopted Target"]);
+
+        assert.match(runRaw(dir, ["test"]).stdout, /source repo/, "hos test redirects in an adopted target");
+        assert.match(runRaw(dir, ["smoke"]).stdout, /source repo/, "hos smoke redirects in an adopted target");
+        assert.equal(run(dir, ["doctor"]).ok, true, "doctor remains the project health check");
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

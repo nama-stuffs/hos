@@ -396,12 +396,22 @@ const commands = {
 
     smoke(sub, a) {
         const f = flags([sub, ...a].filter((x) => x !== undefined));
+        if (!isSourceRepo() && !f.force) {
+            print("hos smoke validates HOS install/adopt itself and runs in the HOS source repo. In this project, `hos doctor` is the health check. Use --force to run it anyway.");
+            return;
+        }
         const r = smoke({ keep: Boolean(f.keep) });
         print(r);
         process.exit(r.ok ? 0 : 1);
     },
 
-    test: () => process.exit(runTests()),
+    test(sub, a) {
+        if (!isSourceRepo() && !flags([sub, ...a].filter((x) => x !== undefined)).force) {
+            print("hos test runs HOS's own unit suite and runs in the HOS source repo. In this project, `hos doctor` is the health check, and your tests run through the commands in hos.json. Use --force to run it anyway.");
+            return;
+        }
+        process.exit(runTests());
+    },
 
     merge(sub, a) {
         const f = flags([sub, ...a].filter((x) => x !== undefined));
