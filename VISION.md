@@ -6,8 +6,8 @@ run a shell then works through a small, dependency-free CLI for tickets, memory,
 spec, reports, and proof.
 
 This document explains **why HOS exists, the mental model, how it works today, and
-where it is going.** For commands see [README](README.md) and the worked
-[QUICKSTART](QUICKSTART.md); for the agent contract see [AGENTS.md](AGENTS.md).
+where it is going.** For commands see [README](README.md); for the agent contract
+see [AGENTS.md](AGENTS.md).
 
 ## The problem
 
@@ -114,8 +114,8 @@ Most of the original roadmap is now built:
 
 - **Upgrade (`hos upgrade`)** re-syncs framework files to a newer release while
   preserving a project's own tickets, memory, and spec.
-- **Frictionless adoption** — one-step `adopt --agents-strategy`, an `npx` entry
-  point, and forward-slash paths across platforms.
+- **Frictionless adoption** — one-step `adopt --agents-strategy` and forward-slash
+  paths across platforms.
 - **Deeper measurement** — `bench` proves recall, *application* (the rule reaches
   the composed prompt), and *precision* (no junk surfaced), and a raw count can no
   longer game the contribution gate.
@@ -141,9 +141,7 @@ Most of the original roadmap is now built:
 What remains:
 
 - **Field-proven agent-agnosticism** beyond Claude Code — the same flow under
-  Codex and other agents, and a published package for `npx`.
-- **Write-heavy parallelism** — isolating workers in their own git worktrees when
-  they must edit overlapping files, not only append to separate tickets.
+  Codex and other agents.
 - **Self-improvement at scale** — many projects contributing measured upstream
   improvements, so shared friction makes the harness smarter over time.
 

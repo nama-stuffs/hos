@@ -7,8 +7,7 @@ production audit ledger, task playbooks, background sessions, retrospective
 metrics, self-updates, and proof.
 
 New here? Read [VISION.md](VISION.md) for the why, the mental model, how it works
-today, and the roadmap. [QUICKSTART.md](QUICKSTART.md) walks one real ticket end to
-end (plus the audit, background, and self-update flows).
+today, and the roadmap.
 
 **Status: beta** - the layout and CLI may change before 1.0. HOS is exercised by
 the [HOS Lab](https://github.com/nama-stuffs/hos-lab), a black-box benchmark that
@@ -24,12 +23,8 @@ install nama-stuffs/hos in this project
 An agent following that prompt copies `.hos/` per [.hos/bootstrap.md](.hos/bootstrap.md),
 then runs the install / adopt / run flow in [.hos/install.md](.hos/install.md).
 
-For humans, once published to npm:
-
-```bash
-npx @nama-stuffs/hos init --name "<project>"    # new project
-npx @nama-stuffs/hos adopt --name "<project>"   # existing project
-```
+HOS is a drop-in: there is nothing to install from a registry. You can also run the
+CLI directly with `node .hos/tools/hos.mjs <command>`.
 
 ## Core
 

@@ -33,8 +33,8 @@ function agentsTemplateInSync() {
     return norm(template) === norm(AGENTS_MD);
 }
 
-// The npm package version (used by npx) must match the shipped framework version
-// so an install and the harness it reports agree.
+// The root package.json version must match the shipped framework version, so the
+// recorded version and the harness it reports agree.
 function packageVersionInSync() {
     const pkg = join(REPO_ROOT, "package.json");
     if (!existsSync(pkg)) {
