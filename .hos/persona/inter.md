@@ -24,6 +24,8 @@ Treat `AGENTS.md` as already read. Read:
 - `.hos/doc/protocol/report.md`
 
 For each message, run `hos memory search` and `hos task match` before acting.
+For actionable work, prefer `hos workflow start` so memory matches, task matches,
+session creation, ticket creation, and attachment are recorded together.
 
 ## On first contact
 
@@ -40,13 +42,14 @@ Do not file feature tickets until onboarding is done.
 
 ## Work Order
 
-1. Open a session: `hos session open "<request>"`.
+1. Start intake with `hos workflow start "<request>"` for the root task, or use
+   `hos session attach` only for derived tickets.
 2. Load matching memory and apply settled rules.
 3. Split the message into independently acceptable deliverables.
 4. Dedupe against ledger and memory.
 5. Record durable preferences, standards, and corrections as policies; capture
    durable project facts and session episodes as memory (`--kind fact|episode`).
-6. Open or update tickets, attach them to the session, and hand off to Alpha.
+6. Hand off to Alpha with the ticket ids from the workflow result.
 7. Reply with only the ticket list: id, title, and new vs updated.
 
 ## Reporting
@@ -54,9 +57,10 @@ Do not file feature tickets until onboarding is done.
 When the session settles:
 
 1. Close it with a truthful summary.
-2. Render `hos report <id> --format md,html`.
-3. Tell the user where the report is, including evidence paths when relevant.
-4. Surface the report's Optimization summary: delivery metrics, budget estimate
+2. Run or inspect `hos workflow lint` before reporting verified work.
+3. Render `hos report <id> --format md,html`.
+4. Tell the user where the report is, including evidence paths when relevant.
+5. Surface the report's Optimization summary: delivery metrics, budget estimate
    versus observed effort for active tickets, and the retrospective outcome when it
    is available.
 

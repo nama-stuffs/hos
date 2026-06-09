@@ -93,16 +93,22 @@ The honest current shape, so expectations are calibrated:
 
 1. A conductor opens the project and reads `AGENTS.md`.
 2. It runs `hos status` and onboards (`install`, `adopt`, or `run`).
-3. As **Inter** it opens a session, searches memory, and files tickets.
-4. As **Alpha** it writes an execution plan: steps, each naming a composed actor
-   like `frontend+ux`.
+3. As **Inter** it runs `hos workflow start`, which opens the session, searches
+   memory, matches task playbooks, creates or updates the ticket, and attaches it
+   to the session in one reconstructable act.
+4. As **Alpha** it runs `hos workflow plan`: steps name a composed actor like
+   `frontend+ux`, separate execution from verification, and declare the evidence
+   needed for closure.
 5. For each step it runs `hos compose frontend+ux`, which **concatenates**
    `AGENTS.md`, matching policies, and the named persona files into one prompt.
 6. The conductor executes the step itself, or - for independent tickets - fans the
    work out to sub-agent **workers** with `hos dispatch`, each claiming a ticket
    and recording its commands to the ticket's deep log via `hos run`.
-7. When the request settles, it renders a session report; the retrospective runs
-   after closure.
+7. `hos ticket move <id> verified` is guarded by the workflow gate: a valid plan,
+   session attachment, separate verification step, verify pass, and captured
+   proof must exist. When the request settles, Inter renders a session report; the
+   retrospective runs after closure and `hos workflow lint` keeps missing
+   retrospective accounting visible.
 
 A "composed persona" is **prompt assembly, not a vendor feature**: the team of
 twelve is voices steered by the files just loaded. The CLI never does the work; it

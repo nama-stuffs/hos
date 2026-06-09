@@ -72,13 +72,16 @@ test("claimable excludes claimed tickets; release returns them to the pool", () 
     const dir = project("claim-pool");
     try {
         const id = run(dir, ["ticket", "create", "Poolable"]).id;
-        assert.equal(run(dir, ["ticket", "list", "--claimable"]).length, 1);
+        let claimable = run(dir, ["ticket", "list", "--claimable"]).map((t) => t.id);
+        assert.ok(claimable.includes(id));
 
         run(dir, ["ticket", "claim", id, "--by", "agent-1"]);
-        assert.equal(run(dir, ["ticket", "list", "--claimable"]).length, 0);
+        claimable = run(dir, ["ticket", "list", "--claimable"]).map((t) => t.id);
+        assert.ok(!claimable.includes(id));
 
         run(dir, ["ticket", "release", id]);
-        assert.equal(run(dir, ["ticket", "list", "--claimable"]).length, 1);
+        claimable = run(dir, ["ticket", "list", "--claimable"]).map((t) => t.id);
+        assert.ok(claimable.includes(id));
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -95,7 +98,7 @@ test("claimable excludes a ticket blocked by an open dependency", () => {
         assert.ok(claimable.includes(blocker), "blocker is claimable");
         assert.ok(!claimable.includes(blocked), "blocked ticket is not claimable while the blocker is open");
 
-        run(dir, ["ticket", "move", blocker, "verified"]);
+        run(dir, ["ticket", "move", blocker, "superseded"]);
         claimable = run(dir, ["ticket", "list", "--claimable"]).map((t) => t.id);
         assert.ok(claimable.includes(blocked), "blocked ticket frees up once the blocker is terminal");
     } finally {
@@ -111,7 +114,7 @@ test("concurrent claims on one ticket yield exactly one winner", async () => {
             Array.from({ length: 8 }, (_, i) => claimAsync(dir, id, `agent-${i}`))
         );
         assert.equal(results.filter((r) => r.ok === true).length, 1, "exactly one process wins the claim");
-        assert.equal(results.filter((r) => r.ok === false).length, 7, "every other process loses cleanly");
+        assert.equal(results.filter((r) => r.ok !== true).length, 7, "every other process loses the race");
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

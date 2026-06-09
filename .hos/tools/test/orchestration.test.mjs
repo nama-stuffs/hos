@@ -86,7 +86,8 @@ test("a stale claim is reclaimable; release --stale refuses a fresh claim", () =
         const id = json(dir, ["ticket", "create", "Stale"]).id;
         json(dir, ["ticket", "claim", id, "--by", "w"]);
 
-        assert.equal(json(dir, ["ticket", "list", "--claimable"]).length, 0, "a fresh claim is held");
+        let claimable = json(dir, ["ticket", "list", "--claimable"]).map((t) => t.id);
+        assert.ok(!claimable.includes(id), "a fresh claim is held");
         assert.equal(json(dir, ["ticket", "release", id, "--stale"]).released, false, "fresh claim is not released as stale");
 
         const claimFile = join(dir, ".hos", "tickets", id, "claim.json");
@@ -94,7 +95,8 @@ test("a stale claim is reclaimable; release --stale refuses a fresh claim", () =
         claim.at = new Date(Date.now() - 99 * 60000).toISOString();
         writeFileSync(claimFile, JSON.stringify(claim));
 
-        assert.equal(json(dir, ["ticket", "list", "--claimable"]).length, 1, "an aged claim is reclaimable");
+        claimable = json(dir, ["ticket", "list", "--claimable"]).map((t) => t.id);
+        assert.ok(claimable.includes(id), "an aged claim is reclaimable");
         assert.equal(json(dir, ["ticket", "release", id, "--stale"]).released, true);
     } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -108,6 +110,7 @@ test("dispatch emits a self-contained worker brief", () => {
         const brief = text(dir, ["dispatch", id, "--lenses", "frontend+ux", "--by", "worker-a"]);
         assert.match(brief, /Frontend/, "composed persona is included");
         assert.match(brief, /Brief me/, "ticket surface is included");
+        assert.match(brief, /Alpha plan/, "Alpha's plan is included");
         assert.match(brief, /Worker contract/, "the contract is included");
         assert.match(brief, new RegExp(`run ${id}`), "run-capture instruction names the ticket");
         assert.match(brief, /not spawn/i, "workers are told not to spawn");

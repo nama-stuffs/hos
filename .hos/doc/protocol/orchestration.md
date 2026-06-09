@@ -45,12 +45,13 @@ the step becomes a decision point for Inter.
 
 ## Execution plan
 
-For each ticket Alpha writes or refreshes `plan.json`. Each step states intent,
-actor, level, inputs, acceptance, evidence, and failure path. The level is the
-change level the step requires (`task.md`); when it exceeds the granted autonomy,
-Alpha escalates through Inter before running it. Alpha also records an effort
-estimate per ticket (`hos ticket budget`); when observed effort crosses the overrun
-factor, it parks the ticket for a user decision rather than continuing.
+For each ticket Alpha writes or refreshes `plan.json` with `hos workflow plan`.
+Each step states role, intent, actor, level, inputs, acceptance, evidence, and
+failure path. The level is the change level the step requires (`task.md`); when it
+exceeds the granted autonomy, Alpha escalates through Inter before running it.
+Alpha also records an effort estimate per ticket (`hos ticket budget`); when
+observed effort crosses the overrun factor, it parks the ticket for a user
+decision rather than continuing.
 
 ```jsonc
 {
@@ -58,6 +59,7 @@ factor, it parks the ticket for a user decision rather than continuing.
   "steps": [
     {
       "id": "s1",
+      "role": "execution",
       "intent": "Implement the settings panel",
       "actor": { "base": "frontend", "lenses": ["ux", "design"] },
       "level": "medium",
@@ -69,6 +71,12 @@ factor, it parks the ticket for a user decision rather than continuing.
   ]
 }
 ```
+
+`hos workflow lint` is the executable form of this contract. A non-trivial ticket
+cannot be moved to `verified` through the CLI unless its plan is valid, it is
+attached to a session, implementation and verification are separate, a verifier
+recorded a pass, and matching proof was captured through `hos run` or evidence
+files.
 
 Independent tickets may run in parallel. Dependent work uses `blocks` relations.
 
@@ -109,6 +117,9 @@ Alpha repeats this loop until the ledger is clean:
 HOS is files plus the `hos` CLI. A step is executed by the agent reading HOS:
 
 - `hos compose <lenses>` produces the composed prompt.
+- `hos workflow start` records Inter intake in one reconstructable step.
+- `hos workflow plan` records Alpha's executable plan.
+- `hos workflow lint` checks the lifecycle contract before and after closure.
 - The step uses local files and `hos` subcommands; no per-agent branch is
   required.
 - A long-running session splits Inter (foreground, on-demand) from Alpha

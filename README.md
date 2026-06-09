@@ -65,6 +65,9 @@ node .hos/tools/hos.mjs doctor
 node .hos/tools/hos.mjs test
 node .hos/tools/hos.mjs smoke
 node .hos/tools/hos.mjs bench --compare
+node .hos/tools/hos.mjs workflow start "<request>"
+node .hos/tools/hos.mjs workflow plan <ticket-id> --execute <lenses> --verify <lenses>
+node .hos/tools/hos.mjs workflow lint [<ticket-id>]
 node .hos/tools/hos.mjs merge agents
 node .hos/tools/hos.mjs upgrade --from <path-to-fresh-hos>
 node .hos/tools/hos.mjs compose <lenses>
@@ -83,6 +86,11 @@ node .hos/tools/hos.mjs msg send "<text>" --to alpha
 node .hos/tools/hos.mjs notify completed --message "<...>"
 node .hos/tools/hos.mjs upgrade --check
 ```
+
+For substantive user work, `workflow start` is the normal Inter intake path and
+`workflow plan` is Alpha's executable plan writer. `ticket move <id> verified`
+is guarded: it only succeeds when the ticket has a valid plan, a session
+attachment, a separate verification step, and captured proof.
 
 ## Test Gate
 

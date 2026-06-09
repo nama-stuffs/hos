@@ -37,6 +37,8 @@ function json(args) {
 test("compose assembles AGENTS.md plus the named lenses into one prompt", () => {
     const out = text(["compose", "architect+backend"]);
     assert.match(out, /file-based agent harness/);   // AGENTS.md content
+    assert.match(out, /Orchestration Protocol/);     // relevant protocol
+    assert.match(out, /Task Protocol/);              // workflow state protocol
     assert.match(out, /Architect/);                  // architect lens
     assert.match(out, /Backend/);                     // backend lens
     assert.match(out, /\n---\n/);                     // sections are joined

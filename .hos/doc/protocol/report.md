@@ -8,8 +8,8 @@ outcome without reading the ledger.
 
 Inter owns the boundary:
 
-1. Open: `hos session open "<request>"`.
-2. Attach every ticket with a reason:
+1. Open and attach the root task with `hos workflow start "<request>"`.
+2. Attach derived tickets with a reason:
    `hos session attach <session> <ticket> --reason <reason>`.
 3. Close when the fan-out is done:
    `hos session close <session> --summary "<one paragraph>"`.
@@ -26,7 +26,9 @@ links.
 - `html` inlines screenshots as base64.
 
 Inter offers a report at the end of substantive work and tells the user where it
-landed.
+landed. Before reporting a verified close, Inter runs or checks
+`hos workflow lint` so the report does not hide missing proof or retrospective
+accounting.
 
 ## Screenshots and evidence
 

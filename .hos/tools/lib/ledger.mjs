@@ -113,8 +113,8 @@ export function create({ title, report = "", acceptance = "", actor = "", level 
 }
 
 // Append one event to the ticket's journey (the full trace for the report).
-export function journey(id, { actor = "", kind = "note", summary = "", ref = "" }) {
-    appendFileSync(join(dirOf(id), "journey.ndjson"), JSON.stringify({ ts: nowIso(), actor, kind, summary, ref }) + "\n");
+export function journey(id, { actor = "", kind = "note", summary = "", ref = "", ...rest }) {
+    appendFileSync(join(dirOf(id), "journey.ndjson"), JSON.stringify({ ts: nowIso(), actor, kind, summary, ref, ...rest }) + "\n");
 }
 
 export function list() {
@@ -321,14 +321,19 @@ export function park(id, { note = "", by = "alpha" } = {}) {
 
 // Record a verification attempt as a structured event so metrics need not parse
 // free text. See doc/protocol/testing.md.
-export function verify(id, { result = "pass", note = "", by = "tester" } = {}) {
+export function verify(id, { result = "pass", note = "", by = "tester", step = "", evidence = "" } = {}) {
     if (!existsSync(dirOf(id))) {
         throw new Error(`no such ticket: ${id}`);
     }
     if (!["pass", "fail"].includes(result)) {
         throw new Error("verify result must be pass or fail");
     }
-    journey(id, { actor: by, kind: "verify", summary: `${result}${note ? `: ${note}` : ""}`, ref: result });
+    const details = [
+        note,
+        step ? `step=${step}` : "",
+        evidence ? `evidence=${evidence}` : ""
+    ].filter(Boolean).join("; ");
+    journey(id, { actor: by, kind: "verify", summary: `${result}${details ? `: ${details}` : ""}`, ref: result, step, evidence });
     return { ok: true, id, result };
 }
 

@@ -4,7 +4,8 @@
 // the heavy detail lives in each ticket's journey. See doc/protocol/report.md.
 
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
-import { SESSIONS_LOG } from "./paths.mjs";
+import { join } from "node:path";
+import { SESSIONS_LOG, TICKETS_DIR } from "./paths.mjs";
 import { nowIso, slugify } from "./util.mjs";
 
 function readLog() {
@@ -23,6 +24,18 @@ export function open(request) {
 
 // Attach a ticket (and why it exists) to the active session.
 export function attach(sessionId, { ticket, reason = "task" }) {
+    if (!sessionId) {
+        throw new Error("session attach needs a session id");
+    }
+    if (!ticket) {
+        throw new Error("session attach needs a ticket id");
+    }
+    if (!readLog().some((e) => e.event === "open" && e.id === sessionId)) {
+        throw new Error(`no such session: ${sessionId}`);
+    }
+    if (!existsSync(join(TICKETS_DIR, ticket, "ticket.md"))) {
+        throw new Error(`no such ticket: ${ticket}`);
+    }
     appendFileSync(SESSIONS_LOG, JSON.stringify({ ts: nowIso(), id: sessionId, event: "attach", ticket, reason }) + "\n");
 }
 

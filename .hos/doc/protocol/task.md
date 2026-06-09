@@ -34,11 +34,14 @@ created and moved with `hos ticket ...`. Each ticket holds:
 | `reported` | Request is recorded; reproduction or acceptance is not established yet. |
 | `reproduced` | The issue or need is confirmed and acceptance is defined. |
 | `fixed` | A change exists, but acceptance has not passed yet. |
-| `verified` | Acceptance passed with recorded evidence. |
+| `verified` | Acceptance passed with recorded evidence and the workflow gate succeeded. |
 | `superseded` | A later explicit decision replaced the requirement. |
 | `duplicate` | Another ticket owns the work. |
 
-Use `hos ticket move <id> <status>` to transition and log the change.
+Use `hos ticket move <id> <status>` to transition and log the change. Moving to
+`verified` is guarded by `hos workflow lint`: the ticket needs a valid Alpha plan,
+a session attachment, separate execution and verification steps, a verify pass,
+and captured proof.
 
 ## Change levels and autonomy
 
@@ -111,7 +114,8 @@ Keep unknowns explicit. A one-line `unknown` is better than invented detail.
 5. Make the smallest change that satisfies acceptance.
 6. Move to `fixed` when the change exists.
 7. Validate with the agreed evidence.
-8. Move to `verified`, or reopen the relevant earlier state with the reason.
+8. Record the verification with `hos ticket verify`.
+9. Move to `verified`, or reopen the relevant earlier state with the reason.
 
 If a later explicit instruction conflicts with an older report, the later
 instruction wins. Keep the older report attached and mark the losing requirement

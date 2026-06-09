@@ -39,14 +39,27 @@ function runRaw(dir, args) {
 test("metrics computes reopens, verify outcomes, and retrospective from the journey", () => {
     const dir = project("retro-metrics");
     try {
-        const id = json(dir, ["ticket", "create", "Lifecycle"]).id;
+        const started = json(dir, [
+            "workflow", "start", "Lifecycle",
+            "--acceptance", "Lifecycle closes with proof.",
+            "--actor", "backend",
+            "--level", "high"
+        ]);
+        const id = started.ticket;
+        json(dir, [
+            "workflow", "plan", id,
+            "--execute", "backend",
+            "--verify", "rev+tester",
+            "--evidence", "captured proof"
+        ]);
         // reported -> reproduced -> fixed -> reproduced (a reopen) -> verified
         text(dir, ["ticket", "move", id, "reproduced"]);
         text(dir, ["ticket", "move", id, "fixed"]);
         text(dir, ["ticket", "move", id, "reproduced"]);
-        text(dir, ["ticket", "move", id, "verified"]);
         text(dir, ["ticket", "verify", id, "--result", "fail"]);
+        text(dir, ["run", id, "--by", "tester", "--", "echo", "proof"]);
         text(dir, ["ticket", "verify", id, "--result", "pass"]);
+        text(dir, ["ticket", "move", id, "verified"]);
         text(dir, ["retro", id, "--outcome", "spec-update,bench-scenario", "--by", "optimizer+curator"]);
 
         const m = json(dir, ["metrics", "ticket", id]);

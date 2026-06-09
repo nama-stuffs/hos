@@ -6,6 +6,7 @@ import { AGENTS_MD, HOS_DIR, HOS_JSON, MEMORY_DIR, REPO_ROOT, SPEC_DIR, TICKETS_
 import { isInitialized } from "./config.mjs";
 import { bootstrapPresent, isSourceRepo } from "./install-files.mjs";
 import { HOS_VERSION } from "./meta.mjs";
+import { doctorCheck as workflowDoctorCheck } from "./workflow.mjs";
 
 const REQUIRED = [
     "persona/inter.md", "persona/alpha.md", "persona/architect.md",
@@ -19,6 +20,7 @@ const REQUIRED = [
     "doc/audit/code.md", "doc/audit/design.md", "doc/audit/ux.md",
     "doc/audit/doc.md", "doc/audit/harness.md",
     "accelerators/registry.json", "agents.template.md", "tools/hos.mjs",
+    "tools/lib/workflow.mjs",
     "task/self-optimization.md", "task/code-optimization.md", "task/audit.md"
 ];
 
@@ -180,6 +182,9 @@ export function doctor() {
 
     const stale = staleHarnessWording();
     checks.push(check("no stale harness CLI wording", stale.length === 0, stale.slice(0, 5).join(" | ")));
+
+    const workflow = workflowDoctorCheck();
+    checks.push(check("verified tickets satisfy workflow gate", workflow.ok, workflow.detail));
 
     const ok = checks.every((c) => c.ok);
     return {

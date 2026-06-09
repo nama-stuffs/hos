@@ -19,14 +19,16 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 
 ## Golden Rules
 
-1. Pull matching memory before acting: `hos memory search`.
-2. Keep `.hos/doc/spec/` current for touched capabilities.
-3. Load only the files needed for the current step.
-4. Follow `.hos/doc/protocol/`.
-5. Surface reusable decisions and friction for the retrospective.
-6. Prefer the smallest correct change; deletion and simplification are wins.
-7. When a request matches a task playbook (`hos task match`), load and follow it.
-8. Editing a document follows `.hos/doc/audit/doc.md`: plain, positive assertions.
+1. For actionable work, start with `hos workflow start` so Inter intake, memory,
+   task matching, session, ticket, and attachment are recorded together.
+2. Pull matching memory before acting: `hos memory search`.
+3. Keep `.hos/doc/spec/` current for touched capabilities.
+4. Load only the files needed for the current step.
+5. Follow `.hos/doc/protocol/`.
+6. Surface reusable decisions and friction for the retrospective.
+7. Prefer the smallest correct change; deletion and simplification are wins.
+8. When a request matches a task playbook (`hos task match`), load and follow it.
+9. Editing a document follows `.hos/doc/audit/doc.md`: plain, positive assertions.
 
 ## Personas
 
@@ -71,6 +73,9 @@ language (`language.user`).
 ```text
 node .hos/tools/hos.mjs status
 node .hos/tools/hos.mjs doctor
+node .hos/tools/hos.mjs workflow start "<request>"
+node .hos/tools/hos.mjs workflow plan <ticket> --execute <lenses> --verify <lenses>
+node .hos/tools/hos.mjs workflow lint [<ticket>]
 node .hos/tools/hos.mjs ticket ...
 node .hos/tools/hos.mjs spec ...
 node .hos/tools/hos.mjs memory ...
@@ -96,3 +101,5 @@ node .hos/tools/hos.mjs status
 ```
 
 Then follow `.hos/install.md` for `install`, `adopt`, or `run`.
+In `run` mode, use `hos workflow start` for substantive user requests and
+`hos workflow lint` before reporting a verified close.

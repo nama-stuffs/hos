@@ -11,6 +11,9 @@
 //   hos ticket list [--claimable] | show <id> | move <id> <status> | link <id> [--parent ..] | report <id> | index
 //   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail | level <id> <low|medium|high> | log <id> --kind .. | thread <id>
 //   hos ticket budget <id> [--estimate <n>] [--unit ..] | park <id> [--note ..]   # effort estimate vs observed; park for a user decision
+//   hos workflow start "<request>" [--title ..] [--acceptance ..] [--actor ..] [--level ..]
+//   hos workflow plan <ticket> --execute <lenses> --verify <lenses> [--acceptance ..] [--evidence ..]
+//   hos workflow lint [<ticket>] [--all] [--open]    # validate the Inter -> Alpha -> lenses -> proof path
 //   hos autonomy show | set <low|medium|high> | gate <low|medium|high>  # change-level permission gate (doc/protocol/task.md)
 //   hos audit record <path> [--by ..] [--ticket ..] | status [<path>] | check | prune  # production-file audit ledger (doc/protocol/audit.md)
 //   hos task list | match "<request>" | show <name>   # keyword-activated reusable playbooks (.hos/task/)
@@ -35,7 +38,7 @@
 //   hos contribute [--title ..]                 # write a contribution bundle
 //   hos compose <lens>[+<lens>..] [--policies "<text>"]
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { AGENTS_MD, HOS_DIR } from "./lib/paths.mjs";
@@ -46,6 +49,7 @@ import * as autonomy from "./lib/autonomy.mjs";
 import * as audit from "./lib/audit.mjs";
 import * as task from "./lib/task.mjs";
 import * as language from "./lib/language.mjs";
+import * as workflow from "./lib/workflow.mjs";
 import * as msg from "./lib/msg.mjs";
 import { waitForEvent } from "./lib/wait.mjs";
 import { notify as doNotify } from "./lib/notify.mjs";
@@ -193,7 +197,13 @@ const commands = {
         },
         verify(a) {
             const f = flags(a);
-            print(ledger.verify(f._[0], { result: str(f.result, "pass"), note: str(f.note), by: str(f.by, "tester") }));
+            print(ledger.verify(f._[0], {
+                result: str(f.result, "pass"),
+                note: str(f.note),
+                by: str(f.by, "tester"),
+                step: str(f.step),
+                evidence: str(f.evidence)
+            }));
         },
         level(a) {
             const f = flags(a);
@@ -218,6 +228,9 @@ const commands = {
         thread: (a) => print(ledger.thread(flags(a)._[0])),
         move(a) {
             const f = flags(a);
+            if (f._[1] === "verified") {
+                workflow.assertCanVerify(f._[0]);
+            }
             print(ledger.move(f._[0], f._[1], str(f.note)));
         },
         link(a) {
@@ -231,6 +244,42 @@ const commands = {
         },
         report: (a) => print(ledger.report(flags(a)._[0])),
         index: () => print(ledger.rebuildIndex())
+    },
+
+    workflow: {
+        start(a) {
+            const f = flags(a);
+            print(workflow.start({
+                request: f._.join(" "),
+                title: str(f.title),
+                report: str(f.report),
+                acceptance: str(f.acceptance),
+                actor: str(f.actor, "alpha"),
+                level: str(f.level, "medium")
+            }));
+        },
+        plan(a) {
+            const f = flags(a);
+            print(workflow.plan(f._[0], {
+                execute: str(f.execute),
+                verify: str(f.verify),
+                level: str(f.level),
+                intent: str(f.intent),
+                acceptance: str(f.acceptance),
+                evidence: str(f.evidence),
+                onFail: str(f["on-fail"])
+            }));
+        },
+        lint(a) {
+            const f = flags(a);
+            const r = workflow.lint({
+                ticket: f._[0] || "",
+                all: Boolean(f.all),
+                settled: !Boolean(f.open)
+            });
+            print(r);
+            process.exit(r.ok ? 0 : 1);
+        }
     },
 
     spec: {
@@ -487,11 +536,39 @@ function composePrompt(spec, policyText) {
         parts.push(block);
     }
 
+    for (const protocol of protocolsFor(lenses)) {
+        parts.push(readFileSync(join(HOS_DIR, "doc", "protocol", `${protocol}.md`), "utf8"));
+    }
+
     for (const lens of lenses) {
         parts.push(readFileSync(join(HOS_DIR, "persona", `${lens}.md`), "utf8"));
     }
 
     return parts.join("\n\n---\n\n");
+}
+
+function protocolsFor(lenses) {
+    const map = {
+        inter: ["memory", "task", "report", "session"],
+        alpha: ["orchestration", "memory", "task", "spec", "retrospective"],
+        architect: ["orchestration", "spec", "task"],
+        frontend: ["task", "testing", "spec"],
+        backend: ["task", "testing", "spec"],
+        design: ["testing", "spec"],
+        ux: ["testing", "spec"],
+        ui: ["testing"],
+        rev: ["testing", "audit"],
+        tester: ["testing"],
+        optimizer: ["retrospective", "bench"],
+        curator: ["memory", "spec", "audit"]
+    };
+    const names = new Set(["orchestration", "task"]);
+    for (const lens of lenses) {
+        for (const protocol of map[lens] || []) {
+            names.add(protocol);
+        }
+    }
+    return [...names].filter((name) => existsSync(join(HOS_DIR, "doc", "protocol", `${name}.md`)));
 }
 
 // Assemble one self-contained worker brief for a ticket: the composed persona, the
@@ -501,6 +578,10 @@ function dispatchBrief(id, lensSpec, by) {
     const lenses = String(lensSpec || "frontend+backend").split(/[+,]/).map((s) => s.trim()).filter(Boolean);
     const persona = composePrompt(lenses.join("+"));
     const { data, body } = ledger.show(id);
+    const planFile = join(HOS_DIR, "tickets", data.id, "plan.json");
+    const plan = existsSync(planFile)
+        ? `# Alpha plan\n\n\`\`\`json\n${readFileSync(planFile, "utf8").trim()}\n\`\`\``
+        : "# Alpha plan\n\nNo plan.json found. Return to Alpha before executing.";
     const name = by || `worker-${lenses[0] || "agent"}`;
     const contract = [
         "# Worker contract (.hos/doc/protocol/parallel.md)",
@@ -509,15 +590,15 @@ function dispatchBrief(id, lensSpec, by) {
         `2. Run every command through \`node .hos/tools/hos.mjs run ${data.id} --by ${name} -- <command>\` so the deep log captures it.`,
         `3. Record decisions and the final handoff: \`node .hos/tools/hos.mjs ticket log ${data.id} --kind note|handoff --summary "..." --by ${name}\`.`,
         `4. Save artifacts under \`.hos/tickets/${data.id}/evidence/\`.`,
-        `5. Set status with \`hos ticket move\` / \`hos ticket verify\`. Do not spawn further agents.`
+        `5. Move only to \`fixed\` or log a handoff. Alpha closes \`verified\` only after a separate verification step passes \`hos workflow lint\`. Do not spawn further agents.`
     ].join("\n");
-    return [persona, "---", `# Your ticket: ${data.id} - ${data.title}\n\n${body}`, "---", contract].join("\n\n");
+    return [persona, "---", `# Your ticket: ${data.id} - ${data.title}\n\n${body}`, "---", plan, "---", contract].join("\n\n");
 }
 
 async function main() {
     const handler = commands[group];
     if (!handler) {
-        print("usage: hos <status|doctor|init|adopt|ticket|spec|memory|compose> ...");
+        print("usage: hos <status|doctor|init|adopt|workflow|ticket|spec|memory|compose> ...");
         process.exit(group ? 1 : 0);
     }
 

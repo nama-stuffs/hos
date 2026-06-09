@@ -27,11 +27,12 @@ This project also runs HOS under [\`.hos/\`](.hos/). Agents use
 
 Golden rules:
 
-1. Pull matching memory before acting: \`hos memory search\`.
-2. Keep \`.hos/doc/spec/\` current for touched capabilities.
-3. Load only the files needed for the current step.
-4. Follow \`.hos/doc/protocol/\`.
-5. Surface reusable decisions and friction for the retrospective.
+1. Start actionable work with \`hos workflow start\`.
+2. Pull matching memory before acting: \`hos memory search\`.
+3. Keep \`.hos/doc/spec/\` current for touched capabilities.
+4. Load only the files needed for the current step.
+5. Follow \`.hos/doc/protocol/\`.
+6. Surface reusable decisions and friction for the retrospective.
 ${END_MARKER}`;
 }
 

@@ -11,7 +11,8 @@ At the start of a session:
 
 1. Identify the active task and source of truth.
 2. Read only the guidance needed for the task.
-3. Check whether a ledger ticket exists when the work is actionable.
+3. For actionable work, use `hos workflow start` to record Inter intake, matching
+   memory, task playbooks, session, ticket, and attachment together.
 4. State the intended outcome when the work is non-trivial.
 5. Record `hos version` so mid-session harness changes can be detected.
 
@@ -27,12 +28,14 @@ it changed, re-read the changed files listed by the command before continuing.
 
 ## Async control and long work
 
-Inter captures the request as tickets, opens a session, hands off to Alpha, and
-returns the ticket list.
+Inter captures the request with `hos workflow start`, hands the ticket to Alpha,
+and returns the ticket list.
 
 Completion is signaled by the report:
 
 - When a request settles, Inter renders the session report (`report.md`).
+- `hos workflow lint` keeps verified tickets, session attachments, proof, and
+  retrospective accounting checkable.
 - `hos status` and `hos ticket list` show live progress.
 - HOS has no daemon. Progress requires an agent run or external runner.
 

@@ -57,9 +57,9 @@ dead or hung worker never wedges a ticket: the conductor runs
 
 `hos dispatch <id> [--lenses frontend+ux] [--by <name>]` assembles one self-contained
 brief: the composed persona, the ticket surface, and the worker contract (claim,
-run through `hos run`, log decisions and a handoff, save evidence, set status, do
-not spawn). The conductor passes this brief to the host's sub-agent tool. HOS
-produces the brief; the host performs the spawn.
+run through `hos run`, log decisions and a handoff, save evidence, move only to
+`fixed`, do not spawn). The conductor passes this brief to the host's sub-agent
+tool. HOS produces the brief; the host performs the spawn.
 
 ## Conductor loop
 
@@ -67,7 +67,8 @@ produces the brief; the host performs the spawn.
 2. For each independent ticket, `hos dispatch` a brief and hand it to a worker -
    in parallel where the host supports background sub-agents.
 3. Wait for workers; integrate each handoff, rebuild indexes, run verification as
-   a separate step, follow `onFail`.
+   a separate step, follow `onFail`, and close through the `hos workflow lint`
+   gate.
 4. On closure, return control to Inter for the report and dispatch the
    retrospective (`retrospective.md`).
 5. Repeat until the ledger is terminal.
@@ -130,7 +131,8 @@ that cannot degrades to synchronous mode.
 Every step is a `hos` command, so any agent with a shell drives the same flow. The
 only host-specific part is the spawn. If the host cannot spawn sub-agents, the
 conductor runs the **same loop serially** - claim, work, `hos run`, `hos ticket
-log`, close, next - losing only parallelism, not the record or correctness.
+log`, fixed, verify, close, next - losing only parallelism, not the record or
+correctness.
 
 ## Shared worktree, by design
 
