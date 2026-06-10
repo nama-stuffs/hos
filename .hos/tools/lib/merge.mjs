@@ -42,13 +42,22 @@ export const STRATEGIES = {
     manual: "Make no automatic change."
 };
 
+// The canonical file's opening claim. An AGENTS.md carrying it is HOS's own
+// (the README install copies it in beside .hos/), not host content to merge.
+const HOS_SIGNATURE = "HOS is a file-based agent harness under `.hos/`";
+
+const normalized = (text) => text.replace(/\r\n/g, "\n").trim();
+
 export function planAgentsMerge(target = AGENTS_MD) {
     if (!existsSync(target)) {
         return { state: "absent", action: "copy-hos-agents" };
     }
 
     const text = readFileSync(target, "utf8");
-    if (text.includes(MARKER)) {
+    // Equality is judged against the shipped template only; the AGENTS_MD
+    // fallback of hosAgentsContent() would compare the target to itself.
+    const template = existsSync(AGENTS_TEMPLATE) ? readFileSync(AGENTS_TEMPLATE, "utf8") : null;
+    if (text.includes(MARKER) || text.includes(HOS_SIGNATURE) || (template !== null && normalized(text) === normalized(template))) {
         return { state: "already-hos", action: "noop" };
     }
 

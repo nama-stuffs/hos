@@ -89,17 +89,21 @@ test("planned execution plus separate proof can close, then requires retrospecti
         ]);
         const id = started.ticket;
 
-        json(dir, [
+        const planned = json(dir, [
             "workflow", "plan", id,
             "--execute", "backend",
             "--verify", "rev+tester",
             "--evidence", "captured command proof"
         ]);
+        assert.match(planned.next, /hos ticket verify/, "plan chains to the verification step");
         text(dir, ["ticket", "move", id, "reproduced"]);
-        text(dir, ["ticket", "move", id, "fixed"]);
+        const fixed = json(dir, ["ticket", "move", id, "fixed"]);
+        assert.match(fixed.next, /hos ticket verify/, "fixed chains to verification");
         text(dir, ["run", id, "--by", "tester", "--", "echo", "proof"]);
-        text(dir, ["ticket", "verify", id, "--result", "pass", "--by", "tester", "--step", "s2", "--evidence", "run log"]);
-        text(dir, ["ticket", "move", id, "verified"]);
+        const passed = json(dir, ["ticket", "verify", id, "--result", "pass", "--by", "tester", "--step", "s2", "--evidence", "run log"]);
+        assert.match(passed.next, /move .* verified/, "a pass chains to guarded closure");
+        const closed = json(dir, ["ticket", "move", id, "verified"]);
+        assert.match(closed.next, /hos retro/, "verified chains to the retrospective");
 
         assert.equal(json(dir, ["workflow", "lint", id, "--open"]).ok, true);
 
@@ -109,6 +113,109 @@ test("planned execution plus separate proof can close, then requires retrospecti
 
         text(dir, ["retro", id, "--outcome", "no-op", "--by", "optimizer+curator"]);
         assert.equal(json(dir, ["workflow", "lint", id]).ok, true);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("workflow start --ticket attaches an existing ticket instead of duplicating", () => {
+    const dir = project("workflow-attach-existing");
+    try {
+        const id = json(dir, ["ticket", "create", "Owned work", "--actor", "backend"]).id;
+        const out = json(dir, ["workflow", "start", "More on owned work", "--ticket", id]);
+        assert.equal(out.ticket, id);
+        assert.equal(out.created, false);
+        assert.deepEqual(out.similar, [], "the attached owner is not its own duplicate candidate");
+        assert.equal(json(dir, ["ticket", "list"]).length, 1, "no duplicate ticket was created");
+
+        const missing = runRaw(dir, ["workflow", "start", "Bad attach", "--ticket", "T-missing"]);
+        assert.equal(missing.status, 1);
+        assert.match(missing.stderr, /no such ticket/);
+
+        text(dir, ["ticket", "move", id, "superseded"]);
+        const terminal = runRaw(dir, ["workflow", "start", "Late work", "--ticket", id]);
+        assert.equal(terminal.status, 1);
+        assert.match(terminal.stderr, /is terminal/, "closed work cannot own new intake");
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("ticket find and workflow start similar make dedupe mechanical", () => {
+    const dir = project("workflow-dedupe-find");
+    try {
+        const first = json(dir, ["workflow", "start", "Fix the login button flicker", "--actor", "frontend"]);
+
+        const found = json(dir, ["ticket", "find", "login button broken again"]);
+        assert.equal(found[0]?.id, first.ticket, "the open owner ranks first");
+
+        const second = json(dir, ["workflow", "start", "Polish login button copy"]);
+        assert.ok(second.similar.some((t) => t.id === first.ticket), "similar surfaces the existing owner");
+
+        text(dir, ["ticket", "move", first.ticket, "superseded"]);
+        const after = json(dir, ["ticket", "find", "login button"]);
+        assert.ok(!after.some((t) => t.id === first.ticket), "terminal tickets stop owning work");
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("a verify fail recorded after a pass blocks verified closure", () => {
+    const dir = project("workflow-fail-after-pass");
+    try {
+        const id = json(dir, [
+            "workflow", "start", "Regression after pass",
+            "--acceptance", "Stays verified only while passing.",
+            "--actor", "backend",
+            "--level", "medium"
+        ]).ticket;
+        json(dir, ["workflow", "plan", id, "--execute", "backend", "--verify", "rev+tester"]);
+        text(dir, ["run", id, "--by", "tester", "--", "echo", "proof"]);
+        text(dir, ["ticket", "verify", id, "--result", "pass", "--by", "tester"]);
+        text(dir, ["ticket", "verify", id, "--result", "fail", "--by", "tester"]);
+
+        const closed = runRaw(dir, ["ticket", "move", id, "verified"]);
+        assert.equal(closed.status, 1);
+        assert.match(closed.stderr, /verify pass as the latest/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("executor and verifier are compared as lens sets, not strings", () => {
+    const dir = project("workflow-actor-sets");
+    try {
+        const id = json(dir, ["ticket", "create", "Set compare", "--actor", "backend"]).id;
+        const dodged = runRaw(dir, ["workflow", "plan", id, "--execute", "rev+backend", "--verify", "backend+rev"]);
+        assert.equal(dodged.status, 1);
+        assert.match(dodged.stderr, /different execute and verify actors/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("ticket move rejects a status outside the canonical model", () => {
+    const dir = project("workflow-bad-status");
+    try {
+        const id = json(dir, ["ticket", "create", "Status typo"]).id;
+        const moved = runRaw(dir, ["ticket", "move", id, "verifed"]);
+        assert.equal(moved.status, 1);
+        assert.match(moved.stderr, /unknown status/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("same-day sessions with the same slug get distinct ids", () => {
+    const dir = project("workflow-session-ids");
+    try {
+        const first = text(dir, ["session", "open", "Fix the login button"]).trim();
+        const second = text(dir, ["session", "open", "Fix the login button"]).trim();
+        assert.notEqual(first, second, "a slug collision must not merge two sessions");
+        assert.match(second, /-2$/);
+
+        const truncated = text(dir, ["session", "open", "Add a discount function to the cart"]).trim();
+        assert.doesNotMatch(truncated, /-$/, "the 24-char cut never leaves a dangling hyphen");
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

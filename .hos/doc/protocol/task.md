@@ -20,8 +20,8 @@ created and moved with `hos ticket ...`. Each ticket holds:
 ## Core rules
 
 - Keep the original report attached. Do not rewrite it into an easier claim.
-- Start actionable repository work by finding the related ticket. If none
-  exists, create one.
+- Start actionable repository work by finding the related ticket
+  (`hos ticket find "<text>"`). If none exists, create one.
 - Define acceptance before treating the task as fixed.
 - Close only against evidence, not intent.
 - Create follow-up tickets only when they are actionable and useful.

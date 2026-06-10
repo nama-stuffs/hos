@@ -38,6 +38,25 @@ test("absent host file plans copy and apply writes HOS verbatim", () => {
     assert.equal(readFileSync(AGENTS_MD, "utf8"), HOS_AGENTS);
 });
 
+test("the canonical HOS AGENTS.md is recognized, not treated as host content", () => {
+    // The README install copies HOS's own AGENTS.md in before adopt runs; the
+    // plan must not ask how to merge HOS with itself.
+    resetTarget("# AGENTS.md\n\nHOS is a file-based agent harness under `.hos/`. Any agent that can read files\nand run a shell can use it.\n");
+    const plan = planAgentsMerge();
+    assert.equal(plan.state, "already-hos");
+    assert.equal(plan.action, "noop");
+
+    writeFileSync(join(root, ".hos", "agents.template.md"), "# AGENTS.md\n\nTemplate body.\n");
+    try {
+        resetTarget("# AGENTS.md\n\nTemplate body.\n");
+        assert.equal(planAgentsMerge().state, "already-hos", "an exact template copy is HOS's own file");
+        resetTarget("# My Project Agents\n\nDo the thing.\n");
+        assert.equal(planAgentsMerge().state, "has-content", "host content still asks when a template exists");
+    } finally {
+        rmSync(join(root, ".hos", "agents.template.md"), { force: true });
+    }
+});
+
 test("host content plans a question with strategy options", () => {
     resetTarget("# My Project Agents\n\nDo the thing.\n");
     const plan = planAgentsMerge();

@@ -5,10 +5,14 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { TICKETS_DIR, TICKETS_INDEX } from "./paths.mjs";
-import { nowIso, slugify, today, writeFileAtomic } from "./util.mjs";
+import { nowIso, slugify, today, tokenize, writeFileAtomic } from "./util.mjs";
+
+// The canonical status model (doc/protocol/task.md). A move outside it is a typo,
+// not a new state.
+export const STATUSES = ["blocked", "reported", "reproduced", "fixed", "verified", "superseded", "duplicate"];
 
 // Terminal statuses: a ticket here needs no more work and is never claimable.
-const TERMINAL = ["verified", "superseded", "duplicate"];
+export const TERMINAL = ["verified", "superseded", "duplicate"];
 
 // The retrospective decision taxonomy. See doc/protocol/retrospective.md.
 export const RETRO_OUTCOMES = [
@@ -123,6 +127,24 @@ export function list() {
         const claim = claimOf(data.id || id);
         return { id: data.id || id, title: data.title, status: data.status, level: data.level || "", labels: Array.isArray(data.labels) ? data.labels : [], actor: data.actor, claimedBy: claim?.by || null };
     });
+}
+
+// Open tickets that lexically match free text, strongest first - the dedupe
+// primitive behind `hos ticket find` and the `similar` list in `workflow start`,
+// so a request lands on the ticket that already owns it. See persona/inter.md.
+export function find(text, { limit = 5 } = {}) {
+    const words = new Set(tokenize(text));
+    return list()
+        .filter((t) => !TERMINAL.includes(t.status))
+        .map((t) => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            score: tokenize(t.title).reduce((s, w) => s + (words.has(w) ? 1 : 0), 0)
+        }))
+        .filter((t) => t.score > 0)
+        .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+        .slice(0, limit);
 }
 
 // Read a ticket's claim, or null when unclaimed.
@@ -242,6 +264,9 @@ export function show(id) {
 
 // Move a ticket to a new canonical status (see task.md) and log it.
 export function move(id, status, note = "") {
+    if (!STATUSES.includes(status)) {
+        throw new Error(`unknown status: ${status || "(none)"} (one of: ${STATUSES.join(", ")})`);
+    }
     const { data, body } = read(id);
     data.status = status;
     // Leaving blocked clears a park: the user's decision has been taken.
@@ -252,7 +277,14 @@ export function move(id, status, note = "") {
     writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
     journey(id, { actor: "alpha", kind: "status", summary: `-> ${status}${note ? `: ${note}` : ""}`, ref: status });
     rebuildIndex();
-    return { id, status };
+    // Chain the protocol: each move names the step task.md expects next, so an
+    // agent advances without re-reading the doc.
+    const next = status === "fixed"
+        ? `hos ticket verify ${id} --result pass|fail --by <verifier>, then hos ticket move ${id} verified`
+        : status === "verified"
+            ? `Dispatch the retrospective (hos retro ${id} --outcome <taxonomy>); Inter renders hos report when the session settles`
+            : "";
+    return next ? { id, status, next } : { id, status };
 }
 
 // Set the change level a ticket genuinely requires (low|medium|high). Alpha sets
@@ -334,7 +366,10 @@ export function verify(id, { result = "pass", note = "", by = "tester", step = "
         evidence ? `evidence=${evidence}` : ""
     ].filter(Boolean).join("; ");
     journey(id, { actor: by, kind: "verify", summary: `${result}${details ? `: ${details}` : ""}`, ref: result, step, evidence });
-    return { ok: true, id, result };
+    const next = result === "pass"
+        ? `hos ticket move ${id} verified`
+        : "Follow the plan's onFail: return to the execution step, fix, and re-verify.";
+    return { ok: true, id, result, next };
 }
 
 // Record a retrospective decision (one or more taxonomy outcomes) as a structured

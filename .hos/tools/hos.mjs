@@ -8,10 +8,10 @@
 //   hos adopt --name <n>             # bind to an existing surrounding project
 //   hos upgrade --from <path> [--apply] | --check [--remote <url>] | --restore [<snapshot>]  # 3-way merge re-sync, GitHub check, or roll back
 //   hos ticket create "<title>" [--report ..] [--acceptance ..] [--actor frontend+ux] [--level low|medium|high]
-//   hos ticket list [--claimable] | show <id> | move <id> <status> | link <id> [--parent ..] | report <id> | index
+//   hos ticket list [--claimable] | find "<text>" | show <id> | move <id> <status> | link <id> [--parent ..] | report <id> | index
 //   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail | level <id> <low|medium|high> | log <id> --kind .. | thread <id>
 //   hos ticket budget <id> [--estimate <n>] [--unit ..] | park <id> [--note ..]   # effort estimate vs observed; park for a user decision
-//   hos workflow start "<request>" [--title ..] [--acceptance ..] [--actor ..] [--level ..]
+//   hos workflow start "<request>" [--title ..] [--acceptance ..] [--actor ..] [--level ..] [--ticket <id>]
 //   hos workflow plan <ticket> --execute <lenses> --verify <lenses> [--acceptance ..] [--evidence ..]
 //   hos workflow lint [<ticket>] [--all] [--open]    # validate the Inter -> Alpha -> lenses -> proof path
 //   hos autonomy show | set <low|medium|high> | gate <low|medium|high>  # change-level permission gate (doc/protocol/task.md)
@@ -184,6 +184,7 @@ const commands = {
             }));
         },
         list: (a) => print(flags(a).claimable ? ledger.claimable() : ledger.list()),
+        find: (a) => print(ledger.find(flags(a)._.join(" "))),
         show: (a) => print(ledger.show(flags(a)._[0])),
         claim(a) {
             const f = flags(a);
@@ -255,7 +256,8 @@ const commands = {
                 report: str(f.report),
                 acceptance: str(f.acceptance),
                 actor: str(f.actor, "alpha"),
-                level: str(f.level, "medium")
+                level: str(f.level, "medium"),
+                ticket: str(f.ticket)
             }));
         },
         plan(a) {

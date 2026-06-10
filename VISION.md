@@ -94,8 +94,8 @@ The honest current shape, so expectations are calibrated:
 1. A conductor opens the project and reads `AGENTS.md`.
 2. It runs `hos status` and onboards (`install`, `adopt`, or `run`).
 3. As **Inter** it runs `hos workflow start`, which opens the session, searches
-   memory, matches task playbooks, creates or updates the ticket, and attaches it
-   to the session in one reconstructable act.
+   memory, matches task playbooks, surfaces similar open tickets, creates or
+   reuses the ticket, and attaches it to the session in one reconstructable act.
 4. As **Alpha** it runs `hos workflow plan`: steps name a composed actor like
    `frontend+ux`, separate execution from verification, and declare the evidence
    needed for closure.

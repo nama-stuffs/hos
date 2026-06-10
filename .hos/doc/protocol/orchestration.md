@@ -76,7 +76,8 @@ decision rather than continuing.
 cannot be moved to `verified` through the CLI unless its plan is valid, it is
 attached to a session, implementation and verification are separate, a verifier
 recorded a pass, and matching proof was captured through `hos run` or evidence
-files.
+files. `hos workflow lint --open` checks work still in flight, where
+retrospective accounting is not yet due.
 
 Independent tickets may run in parallel. Dependent work uses `blocks` relations.
 

@@ -65,6 +65,13 @@ function actorText(actor) {
     return [base, ...lenses].filter(Boolean).join("+");
 }
 
+// Canonical identity of a composed actor: the set of lenses, order- and
+// duplicate-insensitive, so `ux+frontend` and `frontend+ux` are the same actor
+// and cannot dodge the executor/verifier separation check.
+function actorKey(actor) {
+    return [...new Set(actorText(actor).split(/[+,]/).map((s) => s.trim()).filter(Boolean))].sort().join("+");
+}
+
 function stepRole(step) {
     return String(step.role || step.kind || "").toLowerCase();
 }
@@ -119,9 +126,9 @@ function validatePlan(id) {
         errors.push("plan.steps must include a verification step");
     }
     for (const verify of verification) {
-        const verifier = actorText(verify.actor);
-        if (execution.some((step) => actorText(step.actor) === verifier)) {
-            errors.push(`verification step ${verify.id} reuses execution actor ${verifier}`);
+        const verifier = actorKey(verify.actor);
+        if (execution.some((step) => actorKey(step.actor) === verifier)) {
+            errors.push(`verification step ${verify.id} reuses execution actor ${actorText(verify.actor)}`);
         }
     }
 
@@ -162,9 +169,11 @@ function validateTicket(id, { requireProof = false, requireRetro = false } = {})
     }
 
     if (requireProof) {
-        const pass = journey.some((event) => event.kind === "verify" && event.ref === "pass");
-        if (!pass) {
-            errors.push(`${id}: verified closure requires a verify pass event`);
+        // The latest verification outcome decides: a fail recorded after an
+        // earlier pass means the ticket is not currently verified.
+        const verifications = journey.filter((event) => event.kind === "verify");
+        if (verifications.at(-1)?.ref !== "pass") {
+            errors.push(`${id}: verified closure requires a verify pass as the latest verification event`);
         }
         const successfulRuns = ledger.runs(id).filter((run) => run.exit === 0).length;
         if (!successfulRuns && evidenceCount(id) === 0) {
@@ -179,27 +188,44 @@ function validateTicket(id, { requireProof = false, requireRetro = false } = {})
     return { id, ok: errors.length === 0, errors, warnings };
 }
 
-export function start({ request = "", title = "", report = "", acceptance = "", actor = "alpha", level = "medium" } = {}) {
+export function start({ request = "", title = "", report = "", acceptance = "", actor = "alpha", level = "medium", ticket = "" } = {}) {
     const text = request.trim();
     if (!text) {
         throw new Error("workflow start needs a request");
     }
+    // With --ticket, the request is new work on a ticket that already owns it:
+    // attach instead of creating a duplicate (Inter dedupes before creating).
+    // Only an open ticket can own new work; closed work gets a fresh ticket.
+    if (ticket) {
+        if (!ticketExists(ticket)) {
+            throw new Error(`no such ticket: ${ticket}`);
+        }
+        const status = ledger.show(ticket).data.status;
+        if (ledger.TERMINAL.includes(status)) {
+            throw new Error(`ticket ${ticket} is terminal (${status}); create a new ticket and relate it with hos ticket link --parent ${ticket}`);
+        }
+    }
     const sessionId = session.open(text);
-    const ticket = ledger.create({
+    // Captured before any create so the list is the dedupe view Inter saw: open
+    // tickets that lexically own parts of this request.
+    const similar = ledger.find(text);
+    const ticketId = ticket || ledger.create({
         title: title || text,
         report: report || text,
         acceptance,
         actor,
         level
-    });
-    session.attach(sessionId, { ticket: ticket.id, reason: "task" });
+    }).id;
+    session.attach(sessionId, { ticket: ticketId, reason: "task" });
 
     return {
         session: sessionId,
-        ticket: ticket.id,
+        ticket: ticketId,
+        created: !ticket,
+        similar: similar.filter((t) => t.id !== ticketId),
         memory: memory.search(text).map(({ id, kind, title: t, scope }) => ({ id, kind, title: t, scope })),
         tasks: task.match(text),
-        next: `Alpha: hos workflow plan ${ticket.id} --execute <lenses> --verify <lenses> --acceptance "..." --evidence "..."`
+        next: `Alpha: hos workflow plan ${ticketId} --execute <lenses> --verify <lenses> --acceptance "..." --evidence "..."`
     };
 }
 
@@ -221,7 +247,7 @@ export function plan(id, {
     if (!verify) {
         throw new Error("workflow plan needs --verify <lenses>");
     }
-    if (execute === verify) {
+    if (actorKey(execute) === actorKey(verify)) {
         throw new Error("workflow plan needs different execute and verify actors");
     }
 
@@ -231,7 +257,7 @@ export function plan(id, {
     const proof = evidence || "Captured command output or evidence files matched to acceptance.";
     const workIntent = intent || section(body, "Report") || data.title;
     const failPath = onFail || "Return to the execution step with concrete findings.";
-    const next = {
+    const planned = {
         ticket: id,
         lifecycle: {
             intake: "inter",
@@ -262,15 +288,18 @@ export function plan(id, {
                 inputs: ["s1", id],
                 acceptance: acc,
                 evidence: proof,
-                onFail: "Reopen the ticket to reproduced with the failing claim."
+                onFail: "Move the ticket back to reproduced and return to the execution step with the failing claim."
             }
         ]
     };
 
-    writeFileSync(join(ticketDir(id), "plan.json"), JSON.stringify(next, null, 2) + "\n");
+    writeFileSync(join(ticketDir(id), "plan.json"), JSON.stringify(planned, null, 2) + "\n");
     ledger.setLevel(id, lvl);
     ledger.log(id, { kind: "plan", summary: `workflow plan: ${execute} -> ${verify}`, by: "alpha" });
-    return next;
+    return {
+        ...planned,
+        next: `Execute s1 as ${execute} (hos compose ${execute}), capturing proof with hos run ${id} -- <cmd>; then s2: hos ticket verify ${id} --result pass|fail --by ${verify}`
+    };
 }
 
 export function lint({ ticket = "", all = false, settled = true } = {}) {

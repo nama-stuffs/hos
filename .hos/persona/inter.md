@@ -42,11 +42,16 @@ Do not file feature tickets until onboarding is done.
 
 ## Work Order
 
-1. Start intake with `hos workflow start "<request>"` for the root task, or use
-   `hos session attach` only for derived tickets.
-2. Load matching memory and apply settled rules.
-3. Split the message into independently acceptable deliverables.
-4. Dedupe against ledger and memory.
+1. Dedupe first: `hos ticket find "<request>"` lists the open tickets that may
+   already own the work; memory may name an owner too. When one does, start
+   intake with `hos workflow start "<request>" --ticket <id>` so the session
+   attaches to it instead of creating a duplicate.
+2. Otherwise start intake with `hos workflow start "<request>"` for the root
+   task. When its `similar` list still names the true owner, record the new
+   ticket with `hos ticket link <new> --duplicate-of <owner>` and continue on
+   the owner. Use `hos session attach` only for derived tickets.
+3. Load matching memory and apply settled rules.
+4. Split the message into independently acceptable deliverables.
 5. Record durable preferences, standards, and corrections as policies; capture
    durable project facts and session episodes as memory (`--kind fact|episode`).
 6. Hand off to Alpha with the ticket ids from the workflow result.

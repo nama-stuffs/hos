@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { MEMORY_DIR, SPEC_DIR, TICKETS_DIR } from "./paths.mjs";
 import { settings } from "./config.mjs";
 import { onboarding } from "./onboard.mjs";
-import { list } from "./ledger.mjs";
+import { list, TERMINAL } from "./ledger.mjs";
 
 export function status() {
     const onboard = onboarding();
@@ -18,7 +18,7 @@ export function status() {
         memoryStore: existsSync(MEMORY_DIR),
         ticketsDir: existsSync(TICKETS_DIR),
         specDir: existsSync(SPEC_DIR),
-        open: tickets.filter((t) => !["verified", "superseded", "duplicate"].includes(t.status)).length,
+        open: tickets.filter((t) => !TERMINAL.includes(t.status)).length,
         parked: tickets.filter((t) => (t.labels || []).includes("parked")).length,
         total: tickets.length
     };

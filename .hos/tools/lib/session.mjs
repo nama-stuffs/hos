@@ -15,9 +15,16 @@ function readLog() {
 }
 
 // Open a session for a user request. Returns its id. Everything Inter and Alpha
-// do for this request references it, so the report can gather them later.
+// do for this request references it, so the report can gather them later. Ids are
+// unique: a same-day request with the same slug gets a numeric suffix, so two
+// sessions never share one id (mirrors ticket id allocation).
 export function open(request) {
-    const id = `S-${new Date().toISOString().slice(0, 10)}-${slugify(request).slice(0, 24) || "session"}`;
+    const base = `S-${new Date().toISOString().slice(0, 10)}-${slugify(request).slice(0, 24).replace(/-+$/, "") || "session"}`;
+    const taken = new Set(readLog().filter((e) => e.event === "open").map((e) => e.id));
+    let id = base;
+    for (let n = 2; taken.has(id); n++) {
+        id = `${base}-${n}`;
+    }
     appendFileSync(SESSIONS_LOG, JSON.stringify({ ts: nowIso(), id, event: "open", request }) + "\n");
     return id;
 }
@@ -40,6 +47,9 @@ export function attach(sessionId, { ticket, reason = "task" }) {
 }
 
 export function close(sessionId, summary = "") {
+    if (!readLog().some((e) => e.event === "open" && e.id === sessionId)) {
+        throw new Error(`no such session: ${sessionId}`);
+    }
     appendFileSync(SESSIONS_LOG, JSON.stringify({ ts: nowIso(), id: sessionId, event: "close", summary }) + "\n");
 }
 
