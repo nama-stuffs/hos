@@ -14,6 +14,10 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 - **Alpha** plans, composes, dispatches, closes, and triggers the retrospective.
 - **Lenses** (`architect`, `frontend`, `backend`, `design`, `ux`, `ui`, `rev`,
   `tester`, `optimizer`, `curator`) are composed per step.
+- Execution and verification run as **separate sub-agents** when the host has a
+  sub-agent tool (`hos dispatch <id> --lenses <set>` builds each self-contained
+  brief). Without one, compose the hats sequentially; verification still runs in
+  a fresh session either way.
 - Durable rules go to `.hos/memory/`.
 - Product behavior goes to `.hos/doc/spec/`.
 
@@ -29,6 +33,13 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 7. Prefer the smallest correct change; deletion and simplification are wins.
 8. When a request matches a task playbook (`hos task match`), load and follow it.
 9. Editing a document follows `.hos/doc/audit/doc.md`: plain, positive assertions.
+10. Load each lifecycle hat for real: `hos compose <lenses> --ticket <id>`, or
+    `hos dispatch <id> --lenses <lenses>` for a sub-agent. The verified gate
+    rejects a close whose actors were never composed, whose verify event names a
+    different actor than the plan, or whose verification ran in a work session.
+11. Read harness records through the CLI (`hos ticket show <id>`, `hos spec
+    list`): shell readers misdecode UTF-8 on some hosts and report corruption
+    that is not there.
 
 ## Personas
 
@@ -73,9 +84,10 @@ language (`language.user`).
 ```text
 node .hos/tools/hos.mjs status
 node .hos/tools/hos.mjs doctor
-node .hos/tools/hos.mjs workflow start "<request>"
+node .hos/tools/hos.mjs workflow start "<request>" [--title "<harness-language title>"]
 node .hos/tools/hos.mjs workflow plan <ticket> --execute <lenses> --verify <lenses>
 node .hos/tools/hos.mjs workflow lint [<ticket>]
+node .hos/tools/hos.mjs dispatch <ticket> --lenses <lenses>
 node .hos/tools/hos.mjs ticket ...
 node .hos/tools/hos.mjs spec ...
 node .hos/tools/hos.mjs memory ...

@@ -53,12 +53,15 @@ test("metrics computes reopens, verify outcomes, and retrospective from the jour
             "--evidence", "captured proof"
         ]);
         // reported -> reproduced -> fixed -> reproduced (a reopen) -> verified
+        text(dir, ["compose", "backend", "--ticket", id]);
         text(dir, ["ticket", "move", id, "reproduced"]);
         text(dir, ["ticket", "move", id, "fixed"]);
         text(dir, ["ticket", "move", id, "reproduced"]);
         text(dir, ["ticket", "verify", id, "--result", "fail"]);
-        text(dir, ["run", id, "--by", "tester", "--", "echo", "proof"]);
-        text(dir, ["ticket", "verify", id, "--result", "pass"]);
+        text(dir, ["run", id, "--by", "backend", "--", "echo", "proof"]);
+        text(dir, ["session", "open", `Verify ${id}`]);
+        text(dir, ["compose", "rev+tester", "--ticket", id]);
+        text(dir, ["ticket", "verify", id, "--result", "pass", "--by", "rev+tester"]);
         text(dir, ["ticket", "move", id, "verified"]);
         text(dir, ["retro", id, "--outcome", "spec-update,bench-scenario", "--by", "optimizer+curator"]);
 

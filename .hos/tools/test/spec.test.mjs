@@ -3,7 +3,7 @@
 // index reports a criteria count. See doc/protocol/spec.md.
 
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,4 +62,18 @@ test("the index reports a criteria count column", () => {
     const index = readFileSync(join(dir, ".hos", "doc", "spec", "index.md"), "utf8");
     assert.match(index, /\| Capability \| Area \| Criteria \| Status \|/);
     assert.match(index, /\| \[Login\]\(auth\/login\.md\) \| `auth` \| 3 \|/);
+});
+
+test("a stale index heals on re-add and on any spec read", () => {
+    // Simulate the loser of a parallel-add race: the file exists, the index row
+    // does not.
+    const indexPath = join(dir, ".hos", "doc", "spec", "index.md");
+    writeFileSync(indexPath, "# Functional Specification\n\n_stale_\n");
+
+    text(["spec", "add", "Login", "--area", "auth"]);
+    assert.match(readFileSync(indexPath, "utf8"), /\[Login\]/, "re-adding an existing capability rebuilds the index");
+
+    writeFileSync(indexPath, "# Functional Specification\n\n_stale_\n");
+    text(["spec", "list"]);
+    assert.match(readFileSync(indexPath, "utf8"), /\[Login\]/, "a spec read converges the derived index");
 });

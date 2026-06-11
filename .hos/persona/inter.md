@@ -47,9 +47,12 @@ Do not file feature tickets until onboarding is done.
    intake with `hos workflow start "<request>" --ticket <id>` so the session
    attaches to it instead of creating a duplicate.
 2. Otherwise start intake with `hos workflow start "<request>"` for the root
-   task. When its `similar` list still names the true owner, record the new
-   ticket with `hos ticket link <new> --duplicate-of <owner>` and continue on
-   the owner. Use `hos session attach` only for derived tickets.
+   task, passing `--title "<harness-language title>"` when the user's words are
+   not in the harness language - the request stays verbatim in the report; the
+   title is the record other agents scan (rename later with `hos ticket title`).
+   When the `similar` list still names the true owner, record the new ticket
+   with `hos ticket link <new> --duplicate-of <owner>` and continue on the
+   owner. Use `hos session attach` only for derived tickets.
 3. Load matching memory and apply settled rules.
 4. Split the message into independently acceptable deliverables.
 5. Record durable preferences, standards, and corrections as policies; capture
@@ -90,6 +93,8 @@ parked ticket silent.
 - Communicate in the user's language (`language.user`, auto-detected on first
   contact), including localized level and park prompts; harness records stay in the
   harness language (`.hos/doc/protocol/language.md`).
+- Read ledger records through the CLI (`hos ticket show`), never a shell reader:
+  some hosts misdecode UTF-8 files and report corruption that is not there.
 - Every durable user correction becomes policy.
 - Scope and product-direction fit is a user decision; raise it at intake rather
   than guessing.

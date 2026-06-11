@@ -56,10 +56,15 @@ dead or hung worker never wedges a ticket: the conductor runs
 ## Dispatch
 
 `hos dispatch <id> [--lenses frontend+ux] [--by <name>]` assembles one self-contained
-brief: the composed persona, the ticket surface, and the worker contract (claim,
-run through `hos run`, log decisions and a handoff, save evidence, move only to
-`fixed`, do not spawn). The conductor passes this brief to the host's sub-agent
-tool. HOS produces the brief; the host performs the spawn.
+brief: the composed persona, the ticket surface, and the worker contract (open an
+own session, claim, run through `hos run`, log decisions and a handoff, save
+evidence, move only to `fixed`, do not spawn). The dispatch also records the
+composed actor on the ticket journey, which the verified gate checks. The
+conductor passes this brief to the host's sub-agent tool. HOS produces the brief;
+the host performs the spawn. Verification is its own dispatch with the plan's
+verify lenses - its session is never the one that executed the work, and with
+several sessions open the verifier passes its own via
+`hos ticket verify --session <id>`.
 
 ## Conductor loop
 
@@ -123,8 +128,10 @@ that cannot degrades to synchronous mode.
 - **One ticket, one owner.** A worker writes only its claimed ticket's files.
 - **Journeys and deep logs are append-only.** No worker rewrites another's record.
 - **Indexes are derived and written atomically**; the conductor rebuilds them at
-  integration.
-- **Implementation and verification are separate steps** (`orchestration.md`).
+  integration, and any `hos spec list|lint` heals the spec index.
+- **Implementation and verification are separate steps** (`orchestration.md`),
+  and verification runs in its own session - the gate compares the verify
+  event's session against the ticket's work sessions.
 
 ## Agent-agnostic, with serial degradation
 

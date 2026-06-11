@@ -21,6 +21,7 @@ export const RETRO_OUTCOMES = [
 ];
 import { settings } from "./config.mjs";
 import { normalizeLevel } from "./autonomy.mjs";
+import { active as activeSession } from "./session.mjs";
 import * as fm from "./frontmatter.mjs";
 
 function prefix() {
@@ -234,7 +235,7 @@ export function recordRun(id, { cmd = "", exit = 0, durationMs = 0, output = "",
     writeFileSync(join(logDir(id), outFile), output);
     appendFileSync(
         join(logDir(id), "runs.ndjson"),
-        JSON.stringify({ ts: nowIso(), actor, cmd, exit, durationMs, out: outFile }) + "\n"
+        JSON.stringify({ ts: nowIso(), actor, cmd, exit, durationMs, out: outFile, session: activeSession() || "" }) + "\n"
     );
     return { ok: true, id, seq, out: join(logDir(id), outFile).replaceAll("\\", "/") };
 }
@@ -262,6 +263,21 @@ export function show(id) {
     return { data, body, journey: events };
 }
 
+// The plan's verification actor, used to chain the verify ritual in move().
+// Read leniently: a missing or unparsable plan yields "".
+function planVerifier(id) {
+    const file = join(dirOf(id), "plan.json");
+    if (!existsSync(file)) {
+        return "";
+    }
+    try {
+        const verification = JSON.parse(readFileSync(file, "utf8"))?.lifecycle?.verification;
+        return typeof verification === "string" ? verification : "";
+    } catch {
+        return "";
+    }
+}
+
 // Move a ticket to a new canonical status (see task.md) and log it.
 export function move(id, status, note = "") {
     if (!STATUSES.includes(status)) {
@@ -279,8 +295,9 @@ export function move(id, status, note = "") {
     rebuildIndex();
     // Chain the protocol: each move names the step task.md expects next, so an
     // agent advances without re-reading the doc.
+    const verifier = planVerifier(id) || "<verifier>";
     const next = status === "fixed"
-        ? `hos ticket verify ${id} --result pass|fail --by <verifier>, then hos ticket move ${id} verified`
+        ? `Verify in a fresh context: hos session open "Verify ${id}", then hos compose ${verifier} --ticket ${id} (or dispatch a sub-agent: hos dispatch ${id} --lenses ${verifier}), then hos ticket verify ${id} --result pass|fail --by ${verifier}`
         : status === "verified"
             ? `Dispatch the retrospective (hos retro ${id} --outcome <taxonomy>); Inter renders hos report when the session settles`
             : "";
@@ -352,24 +369,27 @@ export function park(id, { note = "", by = "alpha" } = {}) {
 }
 
 // Record a verification attempt as a structured event so metrics need not parse
-// free text. See doc/protocol/testing.md.
-export function verify(id, { result = "pass", note = "", by = "tester", step = "", evidence = "" } = {}) {
+// free text. The event carries the session it ran in (explicit --session wins
+// over the active one), so the workflow gate can prove the verification did not
+// reuse a work session. See doc/protocol/testing.md.
+export function verify(id, { result = "pass", note = "", by = "tester", step = "", evidence = "", session = "" } = {}) {
     if (!existsSync(dirOf(id))) {
         throw new Error(`no such ticket: ${id}`);
     }
     if (!["pass", "fail"].includes(result)) {
         throw new Error("verify result must be pass or fail");
     }
+    const inSession = session || activeSession() || "";
     const details = [
         note,
         step ? `step=${step}` : "",
         evidence ? `evidence=${evidence}` : ""
     ].filter(Boolean).join("; ");
-    journey(id, { actor: by, kind: "verify", summary: `${result}${details ? `: ${details}` : ""}`, ref: result, step, evidence });
+    journey(id, { actor: by, kind: "verify", summary: `${result}${details ? `: ${details}` : ""}`, ref: result, step, evidence, session: inSession });
     const next = result === "pass"
         ? `hos ticket move ${id} verified`
         : "Follow the plan's onFail: return to the execution step, fix, and re-verify.";
-    return { ok: true, id, result, next };
+    return { ok: true, id, result, session: inSession, next };
 }
 
 // Record a retrospective decision (one or more taxonomy outcomes) as a structured
@@ -388,6 +408,27 @@ export function retro(id, { outcomes = [], by = "optimizer", note = "", ref = ""
     }
     journey(id, { actor: by, kind: "retro", summary: `${list.join(",")}${note ? `: ${note}` : ""}`, ref });
     return { ok: true, id, outcomes: list, by };
+}
+
+// Rename a ticket's title; the id and directory stay stable. The common case is
+// replacing a verbatim user-language intake title with the harness-language one
+// (doc/protocol/language.md).
+export function retitle(id, title) {
+    if (!existsSync(dirOf(id))) {
+        throw new Error(`no such ticket: ${id}`);
+    }
+    const text = String(title || "").trim();
+    if (!text) {
+        throw new Error("ticket title needs the new title text");
+    }
+    const { data, body } = read(id);
+    const previous = data.title;
+    data.title = text;
+    data.updated = today();
+    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+    journey(id, { actor: "inter", kind: "retitle", summary: `${previous} -> ${text}` });
+    rebuildIndex();
+    return { id, title: text, previous };
 }
 
 function addUnique(list, value) {

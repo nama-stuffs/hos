@@ -41,7 +41,11 @@ created and moved with `hos ticket ...`. Each ticket holds:
 Use `hos ticket move <id> <status>` to transition and log the change. Moving to
 `verified` is guarded by `hos workflow lint`: the ticket needs a valid Alpha plan,
 a session attachment, separate execution and verification steps, a verify pass,
-and captured proof.
+and captured proof. Plans written by `hos workflow plan` carry contract v2, which
+also checks the recorded events: both lifecycle actors have a compose or dispatch
+event on the journey, the verify event names the plan's verification actor, and
+the verification ran in its own session - a sub-agent, or a fresh
+`hos session open` - never in the session that executed the work.
 
 ## Change levels and autonomy
 

@@ -4,7 +4,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { REPORTS_DIR, TICKETS_DIR } from "./paths.mjs";
-import { gather, latest } from "./session.mjs";
+import { gather, latestAttached } from "./session.mjs";
 import { sessionMetrics } from "./metrics.mjs";
 import { today, toPosix } from "./util.mjs";
 
@@ -128,10 +128,12 @@ ${m.summary ? `<p>${esc(m.summary)}</p>` : ""}<p><strong>Tickets produced:</stro
 ${sections}${optimizationHtml(m.metrics)}</body></html>`;
 }
 
-// Render a report for a session (defaults to the latest) in the given formats.
-// Returns the written file paths. Screenshots are referenced (md) or inlined (html).
+// Render a report for a session (defaults to the latest one that gathered
+// tickets, so a bare verification context never steals the report) in the given
+// formats. Returns the written file paths. Screenshots are referenced (md) or
+// inlined (html).
 export function render(sessionId = null, formats = ["md", "html"]) {
-    const id = sessionId || latest();
+    const id = sessionId || latestAttached();
     if (!id) {
         throw new Error("no session to report on - open one with `hos session open \"<request>\"` (Inter does this at intake), or render a single ticket with `hos ticket report <id>`");
     }

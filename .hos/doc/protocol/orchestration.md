@@ -76,8 +76,12 @@ decision rather than continuing.
 cannot be moved to `verified` through the CLI unless its plan is valid, it is
 attached to a session, implementation and verification are separate, a verifier
 recorded a pass, and matching proof was captured through `hos run` or evidence
-files. `hos workflow lint --open` checks work still in flight, where
-retrospective accounting is not yet due.
+files. Contract-v2 plans (everything `workflow plan` writes) extend the gate to
+the recorded events: each lifecycle actor needs a compose or dispatch event on
+the journey, the verify event must name the plan's verification actor, and the
+verification session must differ from every work session - so the separation is
+enacted, not merely declared. `hos workflow lint --open` checks work still in
+flight, where retrospective accounting is not yet due.
 
 Independent tickets may run in parallel. Dependent work uses `blocks` relations.
 
@@ -117,7 +121,8 @@ Alpha repeats this loop until the ledger is clean:
 
 HOS is files plus the `hos` CLI. A step is executed by the agent reading HOS:
 
-- `hos compose <lenses>` produces the composed prompt.
+- `hos compose <lenses> --ticket <id>` produces the composed prompt and records
+  the actor on the journey (`hos dispatch` records it the same way).
 - `hos workflow start` records Inter intake in one reconstructable step.
 - `hos workflow plan` records Alpha's executable plan.
 - `hos workflow lint` checks the lifecycle contract before and after closure.

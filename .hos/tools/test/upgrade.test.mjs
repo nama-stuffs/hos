@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const { HOS_VERSION } = await import(`file://${join(repoRoot, ".hos", "tools", "lib", "meta.mjs").replaceAll("\\", "/")}`);
 const ARCHITECT = join(".hos", "persona", "architect.md");
 const UI = join(".hos", "persona", "ui.md");
 
@@ -68,7 +69,7 @@ test("dry-run reports a plan and writes nothing", () => {
         const plan = run(dir, ["upgrade", "--from", repoRoot]);
         assert.equal(plan.ok, true);
         assert.equal(plan.applied, false);
-        assert.equal(plan.fromVersion, "0.3.1-beta");
+        assert.equal(plan.fromVersion, HOS_VERSION);
         assert.ok(plan.plan.some((p) => p.file === "persona/ui.md" && p.action === "add"));
         assert.equal(existsSync(join(dir, UI)), false, "dry-run wrote nothing");
     } finally {
@@ -131,7 +132,7 @@ test("a clean apply restores an added file, bumps version, and preserves project
         assert.equal(applied.applied, true);
         assert.equal(applied.conflicts.length, 0);
         assert.equal(existsSync(join(dir, UI)), true, "added framework file restored");
-        assert.equal(JSON.parse(readFileSync(join(dir, ".hos", "hos.json"), "utf8")).hos.version, "0.3.1-beta", "version bumped on a clean apply");
+        assert.equal(JSON.parse(readFileSync(join(dir, ".hos", "hos.json"), "utf8")).hos.version, HOS_VERSION, "version bumped on a clean apply");
         assert.ok(existsSync(join(dir, ".hos", "tickets", ticket.id, "ticket.md")), "ticket preserved");
         assert.ok(existsSync(join(dir, ".hos", "memory", "policy", "custom-project-policy-keep-me.md")), "policy preserved");
         assert.ok(existsSync(join(dir, ".hos", "doc", "spec", "billing", "project-capability.md")), "spec preserved");

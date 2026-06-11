@@ -95,12 +95,27 @@ test("planned execution plus separate proof can close, then requires retrospecti
             "--verify", "rev+tester",
             "--evidence", "captured command proof"
         ]);
-        assert.match(planned.next, /hos ticket verify/, "plan chains to the verification step");
+        assert.equal(planned.contract, 2, "workflow plan writes the v2 contract");
+        assert.match(planned.next, /hos compose backend --ticket/, "plan chains to composing the executor");
+
+        text(dir, ["compose", "backend", "--ticket", id]);
         text(dir, ["ticket", "move", id, "reproduced"]);
+        text(dir, ["run", id, "--by", "backend", "--", "echo", "proof"]);
         const fixed = json(dir, ["ticket", "move", id, "fixed"]);
-        assert.match(fixed.next, /hos ticket verify/, "fixed chains to verification");
-        text(dir, ["run", id, "--by", "tester", "--", "echo", "proof"]);
-        const passed = json(dir, ["ticket", "verify", id, "--result", "pass", "--by", "tester", "--step", "s2", "--evidence", "run log"]);
+        assert.match(fixed.next, /session open "Verify/, "fixed chains to the fresh-session verify ritual");
+        assert.match(fixed.next, /--by rev\+tester/, "the ritual names the planned verifier");
+
+        // A verify event from the work session, without a composed verifier,
+        // cannot close: the separation must be enacted, not declared.
+        text(dir, ["ticket", "verify", id, "--result", "pass", "--by", "rev+tester"]);
+        const inWorkSession = runRaw(dir, ["ticket", "move", id, "verified"]);
+        assert.equal(inWorkSession.status, 1);
+        assert.match(inWorkSession.stderr, /ran in work session/);
+        assert.match(inWorkSession.stderr, /verification actor rev\+tester was never composed/);
+
+        text(dir, ["session", "open", `Verify ${id}`]);
+        text(dir, ["compose", "rev+tester", "--ticket", id]);
+        const passed = json(dir, ["ticket", "verify", id, "--result", "pass", "--by", "rev+tester", "--step", "s2", "--evidence", "run log"]);
         assert.match(passed.next, /move .* verified/, "a pass chains to guarded closure");
         const closed = json(dir, ["ticket", "move", id, "verified"]);
         assert.match(closed.next, /hos retro/, "verified chains to the retrospective");
@@ -113,6 +128,75 @@ test("planned execution plus separate proof can close, then requires retrospecti
 
         text(dir, ["retro", id, "--outcome", "no-op", "--by", "optimizer+curator"]);
         assert.equal(json(dir, ["workflow", "lint", id]).ok, true);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("contract v2 compares the verify event actor to the plan as a lens set", () => {
+    const dir = project("workflow-verify-actor");
+    try {
+        const id = json(dir, [
+            "workflow", "start", "Verifier identity",
+            "--acceptance", "The planned verifier verifies.",
+            "--actor", "backend"
+        ]).ticket;
+        json(dir, ["workflow", "plan", id, "--execute", "backend", "--verify", "rev+tester"]);
+        text(dir, ["compose", "backend", "--ticket", id]);
+        text(dir, ["run", id, "--by", "backend", "--", "echo", "proof"]);
+        text(dir, ["session", "open", `Verify ${id}`]);
+        text(dir, ["compose", "rev+tester", "--ticket", id]);
+
+        // A subset of the planned verifier is not the planned verifier.
+        text(dir, ["ticket", "verify", id, "--result", "pass", "--by", "tester"]);
+        const wrongActor = runRaw(dir, ["ticket", "move", id, "verified"]);
+        assert.equal(wrongActor.status, 1);
+        assert.match(wrongActor.stderr, /not the plan's verification actor/);
+
+        // Order and duplicates do not matter: tester+rev+tester is rev+tester.
+        text(dir, ["ticket", "verify", id, "--result", "pass", "--by", "tester+rev+tester"]);
+        const closed = json(dir, ["ticket", "move", id, "verified"]);
+        assert.match(closed.next, /hos retro/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("a dispatch records the composed actor, so the sub-agent path satisfies the gate", () => {
+    const dir = project("workflow-dispatch-compose");
+    try {
+        const id = json(dir, [
+            "workflow", "start", "Dispatch path",
+            "--acceptance", "Sub-agent execution closes.",
+            "--actor", "backend"
+        ]).ticket;
+        json(dir, ["workflow", "plan", id, "--execute", "backend", "--verify", "rev+tester"]);
+        const brief = text(dir, ["dispatch", id, "--lenses", "backend"]);
+        assert.match(brief, /Worker contract/);
+        assert.match(brief, /session open/, "the brief makes the worker open its own session");
+        text(dir, ["run", id, "--by", "backend", "--", "echo", "proof"]);
+        text(dir, ["session", "open", `Verify ${id}`]);
+        text(dir, ["dispatch", id, "--lenses", "rev+tester"]);
+        text(dir, ["ticket", "verify", id, "--result", "pass", "--by", "rev+tester"]);
+        const closed = json(dir, ["ticket", "move", id, "verified"]);
+        assert.match(closed.next, /hos retro/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("a non-ASCII intake title gets a rename hint and ticket title renames it", () => {
+    const dir = project("workflow-title");
+    try {
+        const out = json(dir, ["workflow", "start", "Javítsd a bejelentkezést"]);
+        assert.match(out.hint || "", /hos ticket title/, "non-ASCII intake points at the rename");
+
+        const renamed = json(dir, ["ticket", "title", out.ticket, "Fix the login"]);
+        assert.equal(renamed.title, "Fix the login");
+        assert.equal(json(dir, ["ticket", "show", out.ticket]).data.title, "Fix the login");
+
+        const ascii = json(dir, ["workflow", "start", "Plain ascii request"]);
+        assert.equal(ascii.hint, undefined, "an ascii title carries no hint");
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

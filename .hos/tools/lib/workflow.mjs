@@ -172,12 +172,44 @@ function validateTicket(id, { requireProof = false, requireRetro = false } = {})
         // The latest verification outcome decides: a fail recorded after an
         // earlier pass means the ticket is not currently verified.
         const verifications = journey.filter((event) => event.kind === "verify");
-        if (verifications.at(-1)?.ref !== "pass") {
+        const lastVerify = verifications.at(-1);
+        if (lastVerify?.ref !== "pass") {
             errors.push(`${id}: verified closure requires a verify pass as the latest verification event`);
         }
         const successfulRuns = ledger.runs(id).filter((run) => run.exit === 0).length;
         if (!successfulRuns && evidenceCount(id) === 0) {
             errors.push(`${id}: verified closure requires captured proof through hos run or evidence files`);
+        }
+
+        // Contract v2 (plans written by `workflow plan`): the separation must be
+        // real in the recorded events, not only declared in the plan. The verify
+        // event names the planned verifier, runs outside every work session, and
+        // both lifecycle actors were actually composed or dispatched. Legacy
+        // plans keep the original gate.
+        const plan = planResult.plan;
+        if ((plan?.contract ?? 1) >= 2 && plan.lifecycle) {
+            const verifierKey = actorKey(plan.lifecycle.verification);
+            if (lastVerify) {
+                if (actorKey(lastVerify.actor) !== verifierKey) {
+                    errors.push(`${id}: the latest verify event actor (${lastVerify.actor || "(none)"}) is not the plan's verification actor (${actorText(plan.lifecycle.verification)})`);
+                }
+                const workSessions = new Set(
+                    sessionAttachments().filter((event) => event.ticket === id && event.reason !== "verify").map((event) => event.id)
+                );
+                if (!lastVerify.session) {
+                    errors.push(`${id}: verification must run inside an open session (hos session open "Verify ${id}" first)`);
+                } else if (workSessions.has(lastVerify.session)) {
+                    errors.push(`${id}: verification ran in work session ${lastVerify.session}; open a fresh session or dispatch a verification sub-agent`);
+                }
+            }
+            const composedKeys = new Set(
+                journey.filter((event) => event.kind === "compose").map((event) => actorKey(event.actor))
+            );
+            for (const [role, actor] of [["execution", plan.lifecycle.execution], ["verification", plan.lifecycle.verification]]) {
+                if (!composedKeys.has(actorKey(actor))) {
+                    errors.push(`${id}: the ${role} actor ${actorText(actor)} was never composed or dispatched (hos compose ${actorText(actor)} --ticket ${id}, or hos dispatch ${id} --lenses ${actorText(actor)})`);
+                }
+            }
         }
     }
 
@@ -218,7 +250,7 @@ export function start({ request = "", title = "", report = "", acceptance = "", 
     }).id;
     session.attach(sessionId, { ticket: ticketId, reason: "task" });
 
-    return {
+    const result = {
         session: sessionId,
         ticket: ticketId,
         created: !ticket,
@@ -227,6 +259,13 @@ export function start({ request = "", title = "", report = "", acceptance = "", 
         tasks: task.match(text),
         next: `Alpha: hos workflow plan ${ticketId} --execute <lenses> --verify <lenses> --acceptance "..." --evidence "..."`
     };
+    // Harness records keep the harness language (doc/protocol/language.md). A
+    // non-ASCII title usually means the user's words landed verbatim; point at
+    // the rename so the ledger stays readable to every later agent.
+    if (!ticket && /[^\x20-\x7E]/.test(title || text)) {
+        result.hint = `the ticket title was stored verbatim; if that is not the harness language, rename it with hos ticket title ${ticketId} "<harness-language title>" (or pass --title at start)`;
+    }
+    return result;
 }
 
 export function plan(id, {
@@ -259,6 +298,10 @@ export function plan(id, {
     const failPath = onFail || "Return to the execution step with concrete findings.";
     const planned = {
         ticket: id,
+        // Contract v2: the verified gate checks the recorded events (composed
+        // actors, verifier identity, fresh verification session), not only the
+        // declared plan. See validateTicket.
+        contract: 2,
         lifecycle: {
             intake: "inter",
             planning: "alpha",
@@ -298,7 +341,7 @@ export function plan(id, {
     ledger.log(id, { kind: "plan", summary: `workflow plan: ${execute} -> ${verify}`, by: "alpha" });
     return {
         ...planned,
-        next: `Execute s1 as ${execute} (hos compose ${execute}), capturing proof with hos run ${id} -- <cmd>; then s2: hos ticket verify ${id} --result pass|fail --by ${verify}`
+        next: `Execute s1 as ${execute}: hos compose ${execute} --ticket ${id} (or hand a sub-agent the brief from hos dispatch ${id} --lenses ${execute}), capture proof with hos run ${id} -- <cmd>, then hos ticket move ${id} fixed`
     };
 }
 

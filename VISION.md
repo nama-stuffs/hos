@@ -99,16 +99,22 @@ The honest current shape, so expectations are calibrated:
 4. As **Alpha** it runs `hos workflow plan`: steps name a composed actor like
    `frontend+ux`, separate execution from verification, and declare the evidence
    needed for closure.
-5. For each step it runs `hos compose frontend+ux`, which **concatenates**
-   `AGENTS.md`, matching policies, and the named persona files into one prompt.
+5. For each step it runs `hos compose frontend+ux --ticket <id>`, which
+   **concatenates** `AGENTS.md`, matching policies, and the named persona files
+   into one prompt - and records the composed actor on the ticket journey.
 6. The conductor executes the step itself, or - for independent tickets - fans the
-   work out to sub-agent **workers** with `hos dispatch`, each claiming a ticket
-   and recording its commands to the ticket's deep log via `hos run`.
+   work out to sub-agent **workers** with `hos dispatch` (which records the
+   composed actor the same way), each claiming a ticket and recording its
+   commands to the ticket's deep log via `hos run`.
 7. `hos ticket move <id> verified` is guarded by the workflow gate: a valid plan,
    session attachment, separate verification step, verify pass, and captured
-   proof must exist. When the request settles, Inter renders a session report; the
-   retrospective runs after closure and `hos workflow lint` keeps missing
-   retrospective accounting visible.
+   proof must exist - and under contract v2 the separation must have been
+   enacted: both lifecycle actors composed or dispatched on the record, the
+   verify event by the planned verifier, the verification in its own session
+   (a sub-agent or a fresh `hos session open`), never the one that executed.
+   When the request settles, Inter renders a session report; the retrospective
+   runs after closure and `hos workflow lint` keeps missing retrospective
+   accounting visible.
 
 A "composed persona" is **prompt assembly, not a vendor feature**: the team of
 twelve is voices steered by the files just loaded. The CLI never does the work; it

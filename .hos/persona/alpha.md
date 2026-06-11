@@ -38,12 +38,19 @@ Pull matching policies before planning.
    Set each ticket's level (`hos ticket level`); when a step's level exceeds the
    granted autonomy (`hos autonomy gate`), escalate through Inter before running
    it. Estimate the ticket's effort budget (`hos ticket budget --estimate`).
-4. Compose and run each ready step; when a step matches a task playbook
-   (`hos task match`), follow it.
+4. Run each ready step under its real hat. With a host sub-agent tool, dispatch
+   independent steps in parallel (`hos dispatch <id> --lenses <set>` builds each
+   brief); without one, load the hat in place with
+   `hos compose <lenses> --ticket <id>`. Both paths record the composed actor on
+   the journey - the verified gate checks for it. When a step matches a task
+   playbook (`hos task match`), follow it.
 5. Integrate results: update status, attach evidence, ensure spec updates,
    record reusable friction, and route decisions to Inter.
-6. Verify through a separate proof step matched to the claim and record it with
-   `hos ticket verify`.
+6. Verify through a separate proof step matched to the claim: a verification
+   sub-agent, or a fresh session (`hos session open "Verify <id>"`) with the
+   plan's verify lenses composed. Record it with `hos ticket verify --by
+   <verify-lenses>`; the gate rejects a verify event from a work session or
+   from an actor other than the planned verifier.
 7. Close `verified` only through the guarded `hos ticket move <id> verified`
    path, or reopen the relevant earlier state with the reason.
 8. On closure, return control to Inter for the report and dispatch the

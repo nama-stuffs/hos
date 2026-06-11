@@ -8,8 +8,8 @@
 //   hos adopt --name <n>             # bind to an existing surrounding project
 //   hos upgrade --from <path> [--apply] | --check [--remote <url>] | --restore [<snapshot>]  # 3-way merge re-sync, GitHub check, or roll back
 //   hos ticket create "<title>" [--report ..] [--acceptance ..] [--actor frontend+ux] [--level low|medium|high]
-//   hos ticket list [--claimable] | find "<text>" | show <id> | move <id> <status> | link <id> [--parent ..] | report <id> | index
-//   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail | level <id> <low|medium|high> | log <id> --kind .. | thread <id>
+//   hos ticket list [--claimable] | find "<text>" | show <id> | move <id> <status> | title <id> "<new title>" | link <id> [--parent ..] | report <id> | index
+//   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail [--by ..] [--session <id>] | level <id> <low|medium|high> | log <id> --kind .. | thread <id>
 //   hos ticket budget <id> [--estimate <n>] [--unit ..] | park <id> [--note ..]   # effort estimate vs observed; park for a user decision
 //   hos workflow start "<request>" [--title ..] [--acceptance ..] [--actor ..] [--level ..] [--ticket <id>]
 //   hos workflow plan <ticket> --execute <lenses> --verify <lenses> [--acceptance ..] [--evidence ..]
@@ -22,7 +22,7 @@
 //   hos msg send "<text>" [--to alpha] | list | drain  # async inbox between foreground Inter and background Alpha
 //   hos notify <event> [--message ..] [--ticket ..]    # fire a notification (notify.command) or record to the sink
 //   hos run <id> [--by ..] -- <command>          # capture a command into the ticket deep log
-//   hos dispatch <id> [--lenses frontend+ux] [--by ..] # assemble a worker brief (the host spawns; HOS does not)
+//   hos dispatch <id> [--lenses frontend+ux] [--by ..] # assemble a worker brief and record the composed actor (the host spawns; HOS does not)
 //   hos retro <id> --outcome <a,b,..> [--by ..] [--note ..]  # record a retrospective decision
 //   hos metrics ticket <id> | session [<id>]    # diagnostic delivery metrics from the journey
 //   hos spec   add "<title>" [--area ..] | list | criteria | lint | index
@@ -36,7 +36,7 @@
 //   hos test                                    # run the unit suite (runner-independent)
 //   hos merge agents [--apply <strategy>]       # plan/apply AGENTS.md merge on adoption
 //   hos contribute [--title ..]                 # write a contribution bundle
-//   hos compose <lens>[+<lens>..] [--policies "<text>"]
+//   hos compose <lens>[+<lens>..] [--policies "<text>"] [--ticket <id>]  # --ticket records the composed actor on the journey (the verified gate checks it)
 
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -203,8 +203,13 @@ const commands = {
                 note: str(f.note),
                 by: str(f.by, "tester"),
                 step: str(f.step),
-                evidence: str(f.evidence)
+                evidence: str(f.evidence),
+                session: str(f.session)
             }));
+        },
+        title(a) {
+            const f = flags(a);
+            print(ledger.retitle(f._[0], f._.slice(1).join(" ")));
         },
         level(a) {
             const f = flags(a);
@@ -293,9 +298,20 @@ const commands = {
                 acceptance: f.acceptance ? str(f.acceptance).split("|") : []
             }));
         },
-        list: () => print(spec.list()),
-        criteria: () => print(spec.criteria()),
-        lint: () => print(spec.lint()),
+        // Every read rebuilds the index first: it is a derived cache, and racing
+        // parallel adds can leave it one row short until the next spec touch.
+        list: () => {
+            spec.rebuildIndex();
+            print(spec.list());
+        },
+        criteria: () => {
+            spec.rebuildIndex();
+            print(spec.criteria());
+        },
+        lint: () => {
+            spec.rebuildIndex();
+            print(spec.lint());
+        },
         index: () => print(spec.rebuildIndex())
     },
 
@@ -512,10 +528,23 @@ const commands = {
 
     dispatch(sub, a) {
         const f = flags(a);
-        print(dispatchBrief(sub, str(f.lenses, "frontend+backend"), str(f.by, "")));
+        const lenses = str(f.lenses, "frontend+backend");
+        const brief = dispatchBrief(sub, lenses, str(f.by, ""));
+        // A dispatch IS a composition: record the actor so the verified gate can
+        // prove the lifecycle actors were really loaded, on either path.
+        ledger.log(sub, { kind: "compose", summary: `dispatched ${lenses}`, by: lenses });
+        print(brief);
     },
 
-    compose: (sub, a) => print(composePrompt(sub, str(flags(a).policies)))
+    compose(sub, a) {
+        const f = flags(a);
+        const prompt = composePrompt(sub, str(f.policies));
+        const ticket = str(f.ticket);
+        if (ticket) {
+            ledger.log(ticket, { kind: "compose", summary: `composed ${sub}`, by: sub });
+        }
+        print(prompt);
+    }
 };
 
 // Assemble a composed-persona prompt: AGENTS.md + matching policies + each lens
@@ -588,11 +617,12 @@ function dispatchBrief(id, lensSpec, by) {
     const contract = [
         "# Worker contract (.hos/doc/protocol/parallel.md)",
         "",
-        `1. Claim it: \`node .hos/tools/hos.mjs ticket claim ${data.id} --by ${name}\`. If the claim fails, take another from \`hos ticket list --claimable\`.`,
-        `2. Run every command through \`node .hos/tools/hos.mjs run ${data.id} --by ${name} -- <command>\` so the deep log captures it.`,
-        `3. Record decisions and the final handoff: \`node .hos/tools/hos.mjs ticket log ${data.id} --kind note|handoff --summary "..." --by ${name}\`.`,
-        `4. Save artifacts under \`.hos/tickets/${data.id}/evidence/\`.`,
-        `5. Move only to \`fixed\` or log a handoff. Alpha closes \`verified\` only after a separate verification step passes \`hos workflow lint\`. Do not spawn further agents.`
+        `1. Open your own session first: \`node .hos/tools/hos.mjs session open "${name}: ${data.id}"\`. A verification step must never reuse the session that executed the work; with several sessions open, pass yours explicitly via \`hos ticket verify --session <your-session>\`.`,
+        `2. Claim it: \`node .hos/tools/hos.mjs ticket claim ${data.id} --by ${name}\`. If the claim fails, take another from \`hos ticket list --claimable\`.`,
+        `3. Run every command through \`node .hos/tools/hos.mjs run ${data.id} --by ${name} -- <command>\` so the deep log captures it.`,
+        `4. Record decisions and the final handoff: \`node .hos/tools/hos.mjs ticket log ${data.id} --kind note|handoff --summary "..." --by ${name}\`.`,
+        `5. Save artifacts under \`.hos/tickets/${data.id}/evidence/\`.`,
+        `6. Move only to \`fixed\` or log a handoff. Alpha closes \`verified\` only after a separate verification step passes \`hos workflow lint\`. Do not spawn further agents.`
     ].join("\n");
     return [persona, "---", `# Your ticket: ${data.id} - ${data.title}\n\n${body}`, "---", plan, "---", contract].join("\n\n");
 }

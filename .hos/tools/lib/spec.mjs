@@ -2,7 +2,7 @@
 // capability is defined primarily by atomic, checkable criteria. See
 // doc/protocol/spec.md.
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { SPEC_DIR, SPEC_INDEX } from "./paths.mjs";
 import { slugify, today, toPosix, writeFileAtomic } from "./util.mjs";
@@ -109,6 +109,9 @@ export function add({ title, area = "", acceptance = [] }) {
     mkdirSync(dir, { recursive: true });
     const file = join(dir, `${slugify(title)}.md`);
     if (existsSync(file)) {
+        // Re-adding heals the index: parallel adds race the dir-scan-then-write
+        // rebuild, so any later spec touch converges it.
+        rebuildIndex();
         return file;
     }
 
@@ -118,7 +121,8 @@ export function add({ title, area = "", acceptance = [] }) {
         body = body.replace("- [ ] _(one checkable assertion)_", acceptance.map((a) => `- [ ] ${a}`).join("\n"));
     }
 
-    writeFileSync(file, fm.serialize(data, body));
+    // Atomic, so a sibling add never scans a half-written capability file.
+    writeFileAtomic(file, fm.serialize(data, body));
     rebuildIndex();
     return file;
 }

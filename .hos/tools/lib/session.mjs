@@ -83,3 +83,23 @@ export function list() {
 export function latest() {
     return list().at(-1)?.id || null;
 }
+
+// The default report target: the most recently opened session that gathered
+// tickets. A bare utility session - a verification context, an experiment -
+// never owns the report. Falls back to the newest session of all.
+export function latestAttached() {
+    const events = readLog();
+    const attached = new Set(events.filter((e) => e.event === "attach").map((e) => e.id));
+    const opens = events.filter((e) => e.event === "open").map((e) => e.id);
+    return [...opens].reverse().find((id) => attached.has(id)) || opens.at(-1) || null;
+}
+
+// The most recently opened session that is still open - the acting context that
+// `hos run` and `hos ticket verify` stamp on their records. Null when every
+// session is closed. With several sessions open in parallel, pass the session
+// explicitly (`hos ticket verify --session <id>`) instead of relying on this.
+export function active() {
+    const events = readLog();
+    const closed = new Set(events.filter((e) => e.event === "close").map((e) => e.id));
+    return events.filter((e) => e.event === "open" && !closed.has(e.id)).at(-1)?.id || null;
+}
