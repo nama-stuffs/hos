@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { AGENTS_MD, HOS_DIR, HOS_JSON, MEMORY_DIR, REPO_ROOT, SPEC_DIR, TICKETS_DIR } from "./paths.mjs";
-import { isInitialized } from "./config.mjs";
+import { isInitialized, settings } from "./config.mjs";
 import { bootstrapPresent, isSourceRepo } from "./install-files.mjs";
 import { HOS_VERSION } from "./meta.mjs";
 import { doctorCheck as workflowDoctorCheck } from "./workflow.mjs";
@@ -130,6 +130,33 @@ function auditLedgerOk() {
     }
 }
 
+// An adopted project whose package.json carries scripts while hos.json knows no
+// runtime or check commands has drifted (the common case: adopt ran on an empty
+// directory, the project grew afterwards). The fix is one command: checks sync.
+function projectChecksSynced() {
+    if (isSourceRepo() || !isInitialized()) {
+        return true;
+    }
+    const pkg = join(REPO_ROOT, "package.json");
+    if (!existsSync(pkg)) {
+        return true;
+    }
+    let scripts;
+    try {
+        scripts = JSON.parse(readFileSync(pkg, "utf8")).scripts || {};
+    } catch {
+        return true;
+    }
+    if (!Object.keys(scripts).length) {
+        return true;
+    }
+    const s = settings();
+    const runtime = s.runtime || {};
+    const checks = s.checks || {};
+    return ["install", "dev", "build"].some((key) => runtime[key])
+        || ["typecheck", "lint", "unit", "e2e"].some((key) => checks[key]);
+}
+
 function ignoreRulesOk() {
     const file = join(REPO_ROOT, ".gitignore");
     if (!existsSync(file)) {
@@ -174,6 +201,12 @@ export function doctor() {
     checks.push(check("package.json version matches HOS_VERSION (source repo)", !isSourceRepo() || packageVersionInSync()));
     checks.push(check("benchmark baseline and scenarios present", benchReady()));
     checks.push(check("audit ledger parses when present", auditLedgerOk()));
+    const checksSynced = projectChecksSynced();
+    checks.push(check(
+        "project commands synced into hos.json",
+        checksSynced,
+        checksSynced ? "" : "package.json has scripts but hos.json runtime/checks are empty - run hos checks sync"
+    ));
 
     const broken = brokenLinks();
     checks.push(check("no broken doc links", broken.length === 0, broken.slice(0, 5).join(" | ")));

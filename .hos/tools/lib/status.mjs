@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { MEMORY_DIR, SPEC_DIR, TICKETS_DIR } from "./paths.mjs";
 import { settings } from "./config.mjs";
 import { onboarding } from "./onboard.mjs";
-import { list, TERMINAL } from "./ledger.mjs";
+import { list, staleOpen, TERMINAL } from "./ledger.mjs";
 
 export function status() {
     const onboard = onboarding();
@@ -20,6 +20,9 @@ export function status() {
         specDir: existsSync(SPEC_DIR),
         open: tickets.filter((t) => !TERMINAL.includes(t.status)).length,
         parked: tickets.filter((t) => (t.labels || []).includes("parked")).length,
+        // Open tickets whose journey has been silent past budget.staleMinutes:
+        // work is happening off the record, or the ticket should be parked.
+        stale: ready ? staleOpen().map((t) => t.id) : [],
         total: tickets.length
     };
 }

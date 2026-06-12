@@ -101,6 +101,14 @@ test("planned execution plus separate proof can close, then requires retrospecti
         text(dir, ["compose", "backend", "--ticket", id]);
         text(dir, ["ticket", "move", id, "reproduced"]);
         text(dir, ["run", id, "--by", "backend", "--", "echo", "proof"]);
+
+        // Claiming a change above the granted autonomy is refused; the grant
+        // recorded by Inter unlocks it.
+        const overGrant = runRaw(dir, ["ticket", "move", id, "fixed"]);
+        assert.equal(overGrant.status, 1);
+        assert.match(overGrant.stderr, /exceeds the granted autonomy/);
+        text(dir, ["autonomy", "set", "high"]);
+
         const fixed = json(dir, ["ticket", "move", id, "fixed"]);
         assert.match(fixed.next, /session open "Verify/, "fixed chains to the fresh-session verify ritual");
         assert.match(fixed.next, /--by rev\+tester/, "the ritual names the planned verifier");

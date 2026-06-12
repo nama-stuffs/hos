@@ -33,27 +33,33 @@ Pull matching policies before planning.
 
 1. Claim the ticket and set the truthful status.
 2. Load matching memory.
-3. Build or refresh the execution plan with `hos workflow plan`: lifecycle owners,
+3. Decompose before planning: a ticket carrying more than `scope.maxAcceptance`
+   criteria is compound - carve each deliverable into a child with
+   `hos ticket split <id> "<deliverable>"` and drive the children. The parent
+   coordinates and closes only after every child is terminal; the gate enforces
+   both ends.
+4. Build or refresh the execution plan with `hos workflow plan`: lifecycle owners,
    steps, roles, actors, change level, inputs, acceptance, evidence, and `onFail`.
    Set each ticket's level (`hos ticket level`); when a step's level exceeds the
    granted autonomy (`hos autonomy gate`), escalate through Inter before running
-   it. Estimate the ticket's effort budget (`hos ticket budget --estimate`).
-4. Run each ready step under its real hat. With a host sub-agent tool, dispatch
+   it - `hos ticket move <id> fixed` refuses work above the grant. Estimate the
+   ticket's effort budget (`hos ticket budget --estimate`).
+5. Run each ready step under its real hat. With a host sub-agent tool, dispatch
    independent steps in parallel (`hos dispatch <id> --lenses <set>` builds each
    brief); without one, load the hat in place with
    `hos compose <lenses> --ticket <id>`. Both paths record the composed actor on
    the journey - the verified gate checks for it. When a step matches a task
    playbook (`hos task match`), follow it.
-5. Integrate results: update status, attach evidence, ensure spec updates,
+6. Integrate results: update status, attach evidence, ensure spec updates,
    record reusable friction, and route decisions to Inter.
-6. Verify through a separate proof step matched to the claim: a verification
+7. Verify through a separate proof step matched to the claim: a verification
    sub-agent, or a fresh session (`hos session open "Verify <id>"`) with the
    plan's verify lenses composed. Record it with `hos ticket verify --by
    <verify-lenses>`; the gate rejects a verify event from a work session or
    from an actor other than the planned verifier.
-7. Close `verified` only through the guarded `hos ticket move <id> verified`
+8. Close `verified` only through the guarded `hos ticket move <id> verified`
    path, or reopen the relevant earlier state with the reason.
-8. On closure, return control to Inter for the report and dispatch the
+9. On closure, return control to Inter for the report and dispatch the
    retrospective on a chosen composition; it runs asynchronously
    (`retrospective.md`) and never blocks the report.
 
@@ -71,6 +77,10 @@ Pull matching policies before planning.
 - When observed effort crosses the budget overrun factor (`hos ticket budget`
   reports `over`), park the ticket (`hos ticket park`) for a user decision via
   Inter; never silently grind past the estimate.
+- The ledger must see the work as it happens: run commands through `hos run`,
+  log decisions with `hos ticket log`. An open ticket silent past
+  `budget.staleMinutes` is flagged by `hos status` and `workflow lint --open` -
+  silence is a defect, not a style.
 - Only matching evidence can close a ticket.
 - Implementation and verification must be separate steps.
 - `hos workflow lint` must pass for verified work; a failed lint reopens the

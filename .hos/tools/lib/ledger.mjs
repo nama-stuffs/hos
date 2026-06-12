@@ -20,8 +20,8 @@ export const RETRO_OUTCOMES = [
     "bench-scenario", "test-tooling", "follow-up", "contribution-candidate"
 ];
 import { settings } from "./config.mjs";
-import { normalizeLevel } from "./autonomy.mjs";
-import { active as activeSession } from "./session.mjs";
+import { gate as autonomyGate, normalizeLevel } from "./autonomy.mjs";
+import { active as activeSession, attach as attachSession, attachedTo } from "./session.mjs";
 import * as fm from "./frontmatter.mjs";
 
 function prefix() {
@@ -93,6 +93,19 @@ function writePlan(id, actor) {
     writeFileSync(join(dirOf(id), "plan.json"), JSON.stringify(plan, null, 2) + "\n");
 }
 
+// One-line acceptance with | separators becomes checkbox criteria (the same
+// convention as spec add). Windows command lines cannot carry raw newlines, so
+// the pipe is the portable way to pass several criteria in one argument;
+// already-multiline text is kept as the author formatted it.
+function renderAcceptance(acceptance) {
+    const text = String(acceptance || "").trim();
+    if (!text || text.includes("\n")) {
+        return text;
+    }
+    const parts = text.split("|").map((s) => s.trim()).filter(Boolean);
+    return parts.length > 1 ? parts.map((p) => `- [ ] ${p}`).join("\n") : text;
+}
+
 // Create a ticket. Returns { id, dir }. actor is "base+lens+lens" (base first).
 export function create({ title, report = "", acceptance = "", actor = "", level = "", labels = [] }) {
     const id = newId(title);
@@ -106,7 +119,7 @@ export function create({ title, report = "", acceptance = "", actor = "", level 
     };
     const body = [
         "## Report", "", report || "_(original request)_", "",
-        "## Acceptance", "", acceptance || "_(define before marking fixed)_", "",
+        "## Acceptance", "", renderAcceptance(acceptance) || "_(define before marking fixed)_", "",
         "## Elements", "", "- [ ] _(break the work into checkable items)_", ""
     ].join("\n");
 
@@ -128,6 +141,64 @@ export function list() {
         const claim = claimOf(data.id || id);
         return { id: data.id || id, title: data.title, status: data.status, level: data.level || "", labels: Array.isArray(data.labels) ? data.labels : [], actor: data.actor, claimedBy: claim?.by || null };
     });
+}
+
+// The direct children of a ticket (tickets whose parent field names it).
+export function children(id) {
+    return ticketDirs()
+        .filter((dir) => dir !== id)
+        .map((dir) => read(dir).data)
+        .filter((data) => data.parent === id)
+        .map((data) => ({ id: data.id, title: data.title, status: data.status }));
+}
+
+// Split a deliverable out of a compound ticket into its own child: linked with
+// parent, attached to the parent's sessions, inheriting actor and level unless
+// overridden. The parent becomes a coordination ticket - the workflow gate
+// closes it only after every child is terminal. See doc/protocol/task.md.
+export function split(id, { title, acceptance = "", actor = "", level = "" } = {}) {
+    if (!existsSync(dirOf(id))) {
+        throw new Error(`no such ticket: ${id}`);
+    }
+    const parent = read(id).data;
+    if (TERMINAL.includes(parent.status)) {
+        throw new Error(`ticket ${id} is terminal (${parent.status}); split an open ticket`);
+    }
+    const text = String(title || "").trim();
+    if (!text) {
+        throw new Error('ticket split needs the child title: hos ticket split <id> "<deliverable>"');
+    }
+    const child = create({
+        title: text,
+        report: `Deliverable of ${id}: ${text}`,
+        acceptance,
+        actor: actor || parent.actor || "",
+        level: level || parent.level || ""
+    });
+    link(child.id, { parent: id });
+    for (const sessionId of attachedTo(id)) {
+        attachSession(sessionId, { ticket: child.id, reason: "subtask" });
+    }
+    journey(id, { actor: "alpha", kind: "split", summary: `split out ${child.id}: ${text}`, ref: child.id });
+    return {
+        id: child.id,
+        parent: id,
+        next: `hos workflow plan ${child.id} --execute <lenses> --verify <lenses>; the parent closes only after every child is terminal`
+    };
+}
+
+// Open tickets whose journey has been silent for longer than
+// budget.staleMinutes (default 45): the ledger's view of "work is happening
+// somewhere I cannot see". Surfaced by hos status and workflow lint --open.
+export function staleOpen(minutes = settings().budget?.staleMinutes ?? 45) {
+    if (!(minutes >= 0)) {
+        return [];
+    }
+    const cutoff = Date.now() - minutes * 60000;
+    return list()
+        .filter((t) => !TERMINAL.includes(t.status))
+        .map((t) => ({ id: t.id, status: t.status, lastEvent: show(t.id).journey.at(-1)?.ts || null }))
+        .filter((t) => t.lastEvent && new Date(t.lastEvent).getTime() < cutoff);
 }
 
 // Open tickets that lexically match free text, strongest first - the dedupe
@@ -278,12 +349,33 @@ function planVerifier(id) {
     }
 }
 
-// Move a ticket to a new canonical status (see task.md) and log it.
+const ACCEPTANCE_PLACEHOLDER = "_(define before marking fixed)_";
+
+// No m flag: a per-line $ would stop the lazy capture at the section's first
+// line and hide every criterion after it.
+function acceptanceSection(body) {
+    return /(?:^|\n)## Acceptance[ \t]*\n([\s\S]*?)(?=\n## |$)/.exec(body)?.[1]?.trim() || "";
+}
+
+// Move a ticket to a new canonical status (see task.md) and log it. Claiming a
+// change exists (fixed, or verified directly) requires defined acceptance and a
+// sufficient autonomy grant - recording reality (blocked, reported, reproduced)
+// never needs permission.
 export function move(id, status, note = "") {
     if (!STATUSES.includes(status)) {
         throw new Error(`unknown status: ${status || "(none)"} (one of: ${STATUSES.join(", ")})`);
     }
     const { data, body } = read(id);
+    if (["fixed", "verified"].includes(status)) {
+        const acceptance = acceptanceSection(body);
+        if (!acceptance || acceptance === ACCEPTANCE_PLACEHOLDER) {
+            throw new Error(`ticket ${id} has no acceptance defined; fill the ## Acceptance section in its ticket.md (or create with --acceptance) before marking ${status}`);
+        }
+        const level = autonomyGate(data.level || "medium");
+        if (!level.ok) {
+            throw new Error(`${level.required} work exceeds the granted autonomy (${level.granted}); escalate through Inter (hos autonomy set ${level.required} on the user's approval) or narrow the scope`);
+        }
+    }
     data.status = status;
     // Leaving blocked clears a park: the user's decision has been taken.
     if (status !== "blocked" && Array.isArray(data.labels)) {

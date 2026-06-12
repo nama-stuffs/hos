@@ -54,7 +54,10 @@ Do not file feature tickets until onboarding is done.
    with `hos ticket link <new> --duplicate-of <owner>` and continue on the
    owner. Use `hos session attach` only for derived tickets.
 3. Load matching memory and apply settled rules.
-4. Split the message into independently acceptable deliverables.
+4. Split the message into independently acceptable deliverables - mechanically:
+   `hos ticket split <root> "<deliverable>"` per deliverable. The root becomes
+   the coordination parent; a ticket holding more than `scope.maxAcceptance`
+   criteria cannot close as one unit.
 5. Record durable preferences, standards, and corrections as policies; capture
    durable project facts and session episodes as memory (`--kind fact|episode`).
 6. Hand off to Alpha with the ticket ids from the workflow result.

@@ -5,6 +5,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SESSIONS_LOG, TICKETS_DIR } from "./paths.mjs";
+import { settings } from "./config.mjs";
 import * as ledger from "./ledger.mjs";
 import * as memory from "./memory.mjs";
 import * as session from "./session.mjs";
@@ -48,9 +49,32 @@ function ticketExists(id) {
     return Boolean(id) && existsSync(join(ticketDir(id), "ticket.md"));
 }
 
+// Without the m flag: with it, the $ alternative matches at every line end and
+// the lazy body stops after the section's first line - multi-line acceptance
+// silently shrank to one criterion.
 function section(body, title) {
-    const rx = new RegExp(`^## ${title}\\s*\\n\\s*([\\s\\S]*?)(?=\\n## |$)`, "m");
+    const rx = new RegExp(`(?:^|\\n)## ${title}[ \\t]*\\n([\\s\\S]*?)(?=\\n## |$)`);
     return rx.exec(body)?.[1]?.trim() || "";
+}
+
+// How many acceptance criteria a ticket carries: checkbox lines, else bullet
+// lines, else one for any non-placeholder prose. More than scope.maxAcceptance
+// on a childless ticket means the scope is compound and must be split.
+function criteriaCount(body) {
+    const text = section(body, "Acceptance");
+    if (!text || text === "_(define before marking fixed)_") {
+        return 0;
+    }
+    const boxes = text.match(/^[ \t]*-[ \t]+\[[ xX]\]/gm);
+    if (boxes) {
+        return boxes.length;
+    }
+    const bullets = text.match(/^[ \t]*-[ \t]+/gm);
+    return bullets ? bullets.length : 1;
+}
+
+function maxAcceptance() {
+    return settings().scope?.maxAcceptance ?? 3;
 }
 
 function actorText(actor) {
@@ -159,13 +183,30 @@ function validateTicket(id, { requireProof = false, requireRetro = false } = {})
         return { id, ok: false, errors: [`no such ticket: ${id}`], warnings };
     }
 
-    const { data, journey } = ledger.show(id);
+    const { data, body, journey } = ledger.show(id);
     const planResult = validatePlan(id);
     errors.push(...planResult.errors.map((message) => `${id}: ${message}`));
     warnings.push(...planResult.warnings.map((message) => `${id}: ${message}`));
 
     if (!attachedSessionsForTicket(id).length) {
         errors.push(`${id}: ticket is not attached to a valid session`);
+    }
+
+    const kids = ledger.children(id);
+    const criteria = criteriaCount(body);
+
+    // Open-work advisories: scope that demands a split, and silence - an open
+    // ticket whose journey has stopped while work presumably continues off the
+    // record. Warnings, not errors: the hard stop is the verified gate.
+    if (!requireProof && !ledger.TERMINAL.includes(data.status)) {
+        if (!kids.length && criteria > maxAcceptance()) {
+            warnings.push(`${id}: ${criteria} acceptance criteria exceed scope.maxAcceptance (${maxAcceptance()}); split the deliverables (hos ticket split ${id} "<deliverable>")`);
+        }
+        const staleMinutes = settings().budget?.staleMinutes ?? 45;
+        const lastEvent = journey.at(-1)?.ts;
+        if (staleMinutes >= 0 && lastEvent && Date.now() - new Date(lastEvent).getTime() > staleMinutes * 60000) {
+            warnings.push(`${id}: no recorded work for over ${staleMinutes}m while open - capture it (hos run ${id} -- <cmd>, hos ticket log) or park the ticket`);
+        }
     }
 
     if (requireProof) {
@@ -176,9 +217,21 @@ function validateTicket(id, { requireProof = false, requireRetro = false } = {})
         if (lastVerify?.ref !== "pass") {
             errors.push(`${id}: verified closure requires a verify pass as the latest verification event`);
         }
+        // A parent ticket closes through its children: every child terminal,
+        // and the children's own verified gates carried the proof. A childless
+        // ticket carries its own proof - and a compound one must split first.
+        const openKids = kids.filter((kid) => !ledger.TERMINAL.includes(kid.status));
+        if (openKids.length) {
+            errors.push(`${id}: a parent closes only after its children are terminal; still open: ${openKids.map((kid) => kid.id).join(", ")}`);
+        }
         const successfulRuns = ledger.runs(id).filter((run) => run.exit === 0).length;
-        if (!successfulRuns && evidenceCount(id) === 0) {
+        if (!kids.length && !successfulRuns && evidenceCount(id) === 0) {
             errors.push(`${id}: verified closure requires captured proof through hos run or evidence files`);
+        }
+        // The split requirement binds plans made under contract v2; work already
+        // verified under an older contract is not retroactively reopened.
+        if (!kids.length && criteria > maxAcceptance() && (planResult.plan?.contract ?? 1) >= 2) {
+            errors.push(`${id}: ${criteria} acceptance criteria exceed scope.maxAcceptance (${maxAcceptance()}) for one ticket; split it first (hos ticket split ${id} "<deliverable>") so each deliverable gets its own plan, proof, and verification`);
         }
 
         // Contract v2 (plans written by `workflow plan`): the separation must be
@@ -205,7 +258,13 @@ function validateTicket(id, { requireProof = false, requireRetro = false } = {})
             const composedKeys = new Set(
                 journey.filter((event) => event.kind === "compose").map((event) => actorKey(event.actor))
             );
-            for (const [role, actor] of [["execution", plan.lifecycle.execution], ["verification", plan.lifecycle.verification]]) {
+            // A parent's execution happened inside its children (each with its
+            // own composed actor), so only the integration verifier must have
+            // been composed here.
+            const roles = kids.length
+                ? [["verification", plan.lifecycle.verification]]
+                : [["execution", plan.lifecycle.execution], ["verification", plan.lifecycle.verification]];
+            for (const [role, actor] of roles) {
                 if (!composedKeys.has(actorKey(actor))) {
                     errors.push(`${id}: the ${role} actor ${actorText(actor)} was never composed or dispatched (hos compose ${actorText(actor)} --ticket ${id}, or hos dispatch ${id} --lenses ${actorText(actor)})`);
                 }
@@ -339,19 +398,31 @@ export function plan(id, {
     writeFileSync(join(ticketDir(id), "plan.json"), JSON.stringify(planned, null, 2) + "\n");
     ledger.setLevel(id, lvl);
     ledger.log(id, { kind: "plan", summary: `workflow plan: ${execute} -> ${verify}`, by: "alpha" });
-    return {
+    const result = {
         ...planned,
         next: `Execute s1 as ${execute}: hos compose ${execute} --ticket ${id} (or hand a sub-agent the brief from hos dispatch ${id} --lenses ${execute}), capture proof with hos run ${id} -- <cmd>, then hos ticket move ${id} fixed`
     };
+    const criteria = criteriaCount(body);
+    if (criteria > maxAcceptance() && !ledger.children(id).length) {
+        result.hint = `compound acceptance (${criteria} criteria > scope.maxAcceptance ${maxAcceptance()}): split before executing - hos ticket split ${id} "<deliverable>" gives each child its own plan, proof, and verification, and this ticket closes when the children are terminal`;
+    }
+    return result;
 }
 
 export function lint({ ticket = "", all = false, settled = true } = {}) {
     const errors = validateSessionLog();
     const warnings = [];
+    // Default lint audits settled (verified) work. --open audits work in
+    // flight too - before it, open tickets were skipped entirely, so a bare
+    // "lint --open: pass" on a ticketless or pre-verified ledger was vacuous.
+    // Terminal non-verified tickets (superseded, duplicate) stay out: they own
+    // no work in either mode.
     const ids = ticket
         ? [ticket]
         : ledger.list()
-            .filter((item) => all || item.status === "verified")
+            .filter((item) => all
+                || item.status === "verified"
+                || (!settled && !ledger.TERMINAL.includes(item.status)))
             .map((item) => item.id);
     const tickets = [];
 
@@ -361,6 +432,13 @@ export function lint({ ticket = "", all = false, settled = true } = {}) {
             requireProof: status === "verified",
             requireRetro: settled
         });
+        // In-flight work is advisory: a not-yet-planned ticket is a state, not
+        // a defect. The hard stops are ticket move and the verified gate.
+        if (!settled && status !== "verified" && result.errors.length) {
+            result.warnings.push(...result.errors);
+            result.errors = [];
+            result.ok = true;
+        }
         tickets.push(result);
         errors.push(...result.errors);
         warnings.push(...result.warnings);

@@ -40,6 +40,11 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 11. Read harness records through the CLI (`hos ticket show <id>`, `hos spec
     list`): shell readers misdecode UTF-8 on some hosts and report corruption
     that is not there.
+12. A compound request becomes child tickets: `hos ticket split <id>
+    "<deliverable>"` carves each one out with its own plan, proof, and
+    verification. The gate refuses to close a ticket carrying more than
+    `scope.maxAcceptance` criteria as one unit, and a parent closes only after
+    its children are terminal.
 
 ## Personas
 
@@ -88,7 +93,9 @@ node .hos/tools/hos.mjs workflow start "<request>" [--title "<harness-language t
 node .hos/tools/hos.mjs workflow plan <ticket> --execute <lenses> --verify <lenses>
 node .hos/tools/hos.mjs workflow lint [<ticket>]
 node .hos/tools/hos.mjs dispatch <ticket> --lenses <lenses>
+node .hos/tools/hos.mjs ticket split <ticket> "<deliverable>"
 node .hos/tools/hos.mjs ticket ...
+node .hos/tools/hos.mjs checks sync
 node .hos/tools/hos.mjs spec ...
 node .hos/tools/hos.mjs memory ...
 node .hos/tools/hos.mjs session ...

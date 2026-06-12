@@ -84,6 +84,12 @@ export function latest() {
     return list().at(-1)?.id || null;
 }
 
+// Every session a ticket is attached to, deduplicated. Used when a split child
+// inherits its parent's session so the report still gathers the whole tree.
+export function attachedTo(ticket) {
+    return [...new Set(readLog().filter((e) => e.event === "attach" && e.ticket === ticket).map((e) => e.id))];
+}
+
 // The default report target: the most recently opened session that gathered
 // tickets. A bare utility session - a verification context, an experiment -
 // never owns the report. Falls back to the newest session of all.

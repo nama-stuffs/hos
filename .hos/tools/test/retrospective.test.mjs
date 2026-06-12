@@ -53,6 +53,7 @@ test("metrics computes reopens, verify outcomes, and retrospective from the jour
             "--evidence", "captured proof"
         ]);
         // reported -> reproduced -> fixed -> reproduced (a reopen) -> verified
+        text(dir, ["autonomy", "set", "high"]);
         text(dir, ["compose", "backend", "--ticket", id]);
         text(dir, ["ticket", "move", id, "reproduced"]);
         text(dir, ["ticket", "move", id, "fixed"]);

@@ -7,8 +7,9 @@
 //   hos init  --name <n> [--desc ..] # set up a new project
 //   hos adopt --name <n>             # bind to an existing surrounding project
 //   hos upgrade --from <path> [--apply] | --check [--remote <url>] | --restore [<snapshot>]  # 3-way merge re-sync, GitHub check, or roll back
-//   hos ticket create "<title>" [--report ..] [--acceptance ..] [--actor frontend+ux] [--level low|medium|high]
+//   hos ticket create "<title>" [--report ..] [--acceptance "<one>|<two>"] [--actor frontend+ux] [--level low|medium|high]   # | separates criteria (newlines do not survive Windows argv)
 //   hos ticket list [--claimable] | find "<text>" | show <id> | move <id> <status> | title <id> "<new title>" | link <id> [--parent ..] | report <id> | index
+//   hos ticket split <id> "<deliverable>" [--acceptance ..] [--actor ..] [--level ..]   # carve a child ticket out of a compound scope; the parent closes after its children
 //   hos ticket claim <id> [--by] | release <id> [--stale] | verify <id> --result pass|fail [--by ..] [--session <id>] | level <id> <low|medium|high> | log <id> --kind .. | thread <id>
 //   hos ticket budget <id> [--estimate <n>] [--unit ..] | park <id> [--note ..]   # effort estimate vs observed; park for a user decision
 //   hos workflow start "<request>" [--title ..] [--acceptance ..] [--actor ..] [--level ..] [--ticket <id>]
@@ -18,6 +19,7 @@
 //   hos audit record <path> [--by ..] [--ticket ..] | status [<path>] | check | prune  # production-file audit ledger (doc/protocol/audit.md)
 //   hos task list | match "<request>" | show <name>   # keyword-activated reusable playbooks (.hos/task/)
 //   hos language show | set [--harness <code>] [--user <code|auto>]   # harness vs user-facing language (doc/protocol/language.md)
+//   hos checks sync                              # re-detect project runtime/check commands into hos.json (doctor flags the drift)
 //   hos wait [--timeout <min>] [--to alpha]            # block until a ledger/inbox event or idle timeout (background Alpha heartbeat)
 //   hos msg send "<text>" [--to alpha] | list | drain  # async inbox between foreground Inter and background Alpha
 //   hos notify <event> [--message ..] [--ticket ..]    # fire a notification (notify.command) or record to the sink
@@ -210,6 +212,15 @@ const commands = {
         title(a) {
             const f = flags(a);
             print(ledger.retitle(f._[0], f._.slice(1).join(" ")));
+        },
+        split(a) {
+            const f = flags(a);
+            print(ledger.split(f._[0], {
+                title: f._.slice(1).join(" "),
+                acceptance: str(f.acceptance),
+                actor: str(f.actor),
+                level: str(f.level)
+            }));
         },
         level(a) {
             const f = flags(a);
@@ -420,6 +431,17 @@ const commands = {
         set(a) {
             const f = flags(a);
             print(language.set({ harness: str(f.harness, ""), user: str(f.user, "") }));
+        }
+    },
+
+    checks: {
+        // Re-detect the surrounding project's commands after they change (a
+        // package.json appearing after adopt is the common case); doctor flags
+        // the drift and names this command.
+        sync() {
+            const detected = detectProjectCommands();
+            patchSettings(detected.settings);
+            print({ ok: true, ...detected.settings, signals: detected.signals });
         }
     },
 

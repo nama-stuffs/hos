@@ -45,13 +45,22 @@ the step becomes a decision point for Inter.
 
 ## Execution plan
 
+Decomposition comes first: a ticket holding more than `scope.maxAcceptance`
+criteria is compound, and Alpha carves each deliverable into a child with
+`hos ticket split` before planning (`task.md`). Children are planned, executed,
+and verified independently - this is what makes parallel dispatch possible - and
+the parent closes only after every child is terminal.
+
 For each ticket Alpha writes or refreshes `plan.json` with `hos workflow plan`.
 Each step states role, intent, actor, level, inputs, acceptance, evidence, and
 failure path. The level is the change level the step requires (`task.md`); when it
-exceeds the granted autonomy, Alpha escalates through Inter before running it.
-Alpha also records an effort estimate per ticket (`hos ticket budget`); when
-observed effort crosses the overrun factor, it parks the ticket for a user
-decision rather than continuing.
+exceeds the granted autonomy, Alpha escalates through Inter before running it -
+`hos ticket move <id> fixed` refuses work above the grant. Alpha also records an
+effort estimate per ticket (`hos ticket budget`); when observed effort crosses
+the overrun factor, it parks the ticket for a user decision rather than
+continuing. The ledger must see the work as it happens (`hos run`,
+`hos ticket log`): an open ticket silent past `budget.staleMinutes` is flagged
+by `hos status` and `workflow lint --open`.
 
 ```jsonc
 {

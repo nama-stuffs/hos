@@ -38,7 +38,9 @@ created and moved with `hos ticket ...`. Each ticket holds:
 | `superseded` | A later explicit decision replaced the requirement. |
 | `duplicate` | Another ticket owns the work. |
 
-Use `hos ticket move <id> <status>` to transition and log the change. Moving to
+Use `hos ticket move <id> <status>` to transition and log the change. Claiming a
+change exists - `fixed`, or `verified` directly - requires a filled Acceptance
+section and a sufficient autonomy grant; the move refuses both gaps. Moving to
 `verified` is guarded by `hos workflow lint`: the ticket needs a valid Alpha plan,
 a session attachment, separate execution and verification steps, a verify pass,
 and captured proof. Plans written by `hos workflow plan` carry contract v2, which
@@ -46,6 +48,17 @@ also checks the recorded events: both lifecycle actors have a compose or dispatc
 event on the journey, the verify event names the plan's verification actor, and
 the verification ran in its own session - a sub-agent, or a fresh
 `hos session open` - never in the session that executed the work.
+
+### Scope: one ticket, one deliverable
+
+A ticket carries at most `scope.maxAcceptance` acceptance criteria (`hos.json`,
+default 3). A compound request becomes child tickets: `hos ticket split <id>
+"<deliverable>"` carves each one out, linked to the parent and attached to its
+sessions, with its own plan, proof, and verification. The parent coordinates and
+closes only after every child is terminal; under contract v2 the gate refuses to
+close a childless compound ticket as one unit. `hos workflow lint --open` flags
+compound scope and silent tickets (no journey event past `budget.staleMinutes`)
+on work still in flight.
 
 ## Change levels and autonomy
 
@@ -134,7 +147,9 @@ as `superseded` where it matters.
 
 ## Subtasks and relations
 
-- Use the tracker's parent/subtask relation for subtasks.
+- Carve subtasks with `hos ticket split <id> "<deliverable>" --acceptance
+  "<criterion>"`; it links the parent, attaches the parent's sessions, and
+  inherits actor and level.
 - Each subtask needs its own acceptance and evidence.
 - Use `blocks` for dependencies.
 - Use `duplicate` only when another issue owns the same work.
