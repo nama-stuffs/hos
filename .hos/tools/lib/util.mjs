@@ -43,37 +43,52 @@ export function sleepSync(ms) {
 // creates .hos/.cache/locks/<name>.lock owns the critical section. A holder
 // that crashed is evicted after staleMs (HOS critical sections are
 // milliseconds, so a stale lock is always a corpse, not a worker).
+//
+// Every iteration that finds the lock held MUST reach the bounded wait at the
+// bottom (deadline check + sleep). The earlier shape let a stat/rm failure
+// `continue` straight back to mkdir, which on Windows is not rare: a directory
+// pending deletion answers mkdir with EEXIST yet stat/rm with EPERM, so an
+// un-removable orphan span the loop at 100% CPU forever, untouched by the
+// timeout (a real incident: `audit record` burned ~21 min of CPU on one such
+// lock). We also wait at least staleMs so a single caller can outlast and evict
+// a corpse itself, rather than every caller giving up before the lock ages out.
 export function withLock(name, fn, { timeoutMs = 5000, staleMs = 10000 } = {}) {
     const locksDir = join(CACHE_DIR, "locks");
     mkdirSync(locksDir, { recursive: true });
     const lock = join(locksDir, `${name}.lock`);
-    const deadline = Date.now() + timeoutMs;
+    const waitMs = Math.max(timeoutMs, staleMs + 1000);
+    const deadline = Date.now() + waitMs;
     for (;;) {
         try {
             mkdirSync(lock);
-            break;
+            break; // acquired
         } catch (err) {
             if (err.code !== "EEXIST") {
                 throw err;
             }
-            try {
-                if (Date.now() - statSync(lock).mtimeMs > staleMs) {
-                    rmSync(lock, { recursive: true, force: true });
-                    continue;
-                }
-            } catch {
-                continue; // the holder released between our mkdir and stat
-            }
-            if (Date.now() > deadline) {
-                throw new Error(`lock busy: ${name} (held longer than ${timeoutMs}ms; a crashed holder clears after ${staleMs}ms)`);
-            }
-            sleepSync(15);
         }
+        // Held. Evict it only if the holder is a corpse (stale mtime). A stat or
+        // rm failure is swallowed and must NOT skip the bounded wait below.
+        try {
+            if (Date.now() - statSync(lock).mtimeMs > staleMs) {
+                rmSync(lock, { recursive: true, force: true });
+            }
+        } catch {
+            // Still held, racing a release, or an un-removable orphan: wait it out.
+        }
+        if (Date.now() > deadline) {
+            throw new Error(`lock busy: ${name} (held past ${waitMs}ms; a crashed holder clears after ${staleMs}ms)`);
+        }
+        sleepSync(15);
     }
     try {
         return fn();
     } finally {
-        rmSync(lock, { recursive: true, force: true });
+        // Best-effort release: if Windows still holds a handle the lock goes
+        // stale and the next caller evicts it - never throw past a good result.
+        try {
+            rmSync(lock, { recursive: true, force: true });
+        } catch {}
     }
 }
 
