@@ -7,4 +7,4 @@
 // protocols, audits, tools, accelerator schema). The root package.json version
 // mirrors this value; meta.mjs is authoritative for the harness.
 
-export const HOS_VERSION = "0.4.4-beta";
+export const HOS_VERSION = "0.4.5-beta";

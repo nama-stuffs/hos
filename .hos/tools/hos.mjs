@@ -44,35 +44,90 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { AGENTS_MD, HOS_DIR } from "./lib/paths.mjs";
-import { planAgentsMerge, applyAgentsMerge, STRATEGIES, hosAgentsContent } from "./lib/merge.mjs";
-import * as memory from "./lib/memory.mjs";
-import * as ledger from "./lib/ledger.mjs";
-import * as autonomy from "./lib/autonomy.mjs";
-import * as audit from "./lib/audit.mjs";
-import * as task from "./lib/task.mjs";
-import * as language from "./lib/language.mjs";
-import * as workflow from "./lib/workflow.mjs";
-import * as msg from "./lib/msg.mjs";
-import { waitForEvent } from "./lib/wait.mjs";
-import { notify as doNotify } from "./lib/notify.mjs";
-import * as spec from "./lib/spec.mjs";
-import * as session from "./lib/session.mjs";
-import { render } from "./lib/report.mjs";
-import { ticketMetrics, sessionMetrics } from "./lib/metrics.mjs";
-import { impact } from "./lib/graph.mjs";
-import { listAccelerators, installPlan } from "./lib/accelerators.mjs";
-import { measure, saveBaseline, compare, hasImprovement, hasRegression } from "./lib/bench.mjs";
-import { smoke } from "./lib/smoke.mjs";
-import { runTests } from "./lib/test.mjs";
-import { contribute } from "./lib/contribute.mjs";
-import { version } from "./lib/version.mjs";
-import { status } from "./lib/status.mjs";
-import { doctor } from "./lib/doctor.mjs";
-import { upgrade as runUpgrade, checkUpdate, restoreBaseline } from "./lib/upgrade.mjs";
-import * as baseline from "./lib/baseline.mjs";
 import { patchSettings } from "./lib/config.mjs";
-import { detectProjectCommands, ensureGeneratedFiles, isSourceRepo } from "./lib/install-files.mjs";
 import { HOS_VERSION } from "./lib/meta.mjs";
+
+// Lazy module loading. A cold `node hos.mjs <cmd>` pays ~14ms per .mjs file the
+// OS virus scanner reads on import, and the full library is ~60 files - ~800ms
+// of an ~1100ms start spent loading code no single command uses. Each command
+// loads only the modules it touches (LOADERS, keyed by the NEEDS manifest),
+// cutting a typical command to a handful of files. The bindings stay
+// module-scoped so every handler body is unchanged; main() populates just the
+// ones the invoked command needs before dispatching. Core modules used on every
+// path (paths, config, meta) stay static above.
+let ledger, workflow, spec, memory, session, audit, autonomy, task, language, msg, baseline;
+let render, impact, listAccelerators, installPlan, ticketMetrics, sessionMetrics;
+let measure, saveBaseline, compare, hasImprovement, hasRegression;
+let smoke, runTests, contribute;
+let runUpgrade, checkUpdate, restoreBaseline, waitForEvent, doNotify;
+let planAgentsMerge, applyAgentsMerge, STRATEGIES, hosAgentsContent;
+let detectProjectCommands, ensureGeneratedFiles, isSourceRepo;
+let status, version, doctor;
+
+const LOADERS = {
+    ledger: async () => { ledger = await import("./lib/ledger.mjs"); },
+    workflow: async () => { workflow = await import("./lib/workflow.mjs"); },
+    spec: async () => { spec = await import("./lib/spec.mjs"); },
+    memory: async () => { memory = await import("./lib/memory.mjs"); },
+    session: async () => { session = await import("./lib/session.mjs"); },
+    audit: async () => { audit = await import("./lib/audit.mjs"); },
+    autonomy: async () => { autonomy = await import("./lib/autonomy.mjs"); },
+    task: async () => { task = await import("./lib/task.mjs"); },
+    language: async () => { language = await import("./lib/language.mjs"); },
+    msg: async () => { msg = await import("./lib/msg.mjs"); },
+    baseline: async () => { baseline = await import("./lib/baseline.mjs"); },
+    status: async () => { ({ status } = await import("./lib/status.mjs")); },
+    version: async () => { ({ version } = await import("./lib/version.mjs")); },
+    doctor: async () => { ({ doctor } = await import("./lib/doctor.mjs")); },
+    report: async () => { ({ render } = await import("./lib/report.mjs")); },
+    graph: async () => { ({ impact } = await import("./lib/graph.mjs")); },
+    accelerators: async () => { ({ listAccelerators, installPlan } = await import("./lib/accelerators.mjs")); },
+    metrics: async () => { ({ ticketMetrics, sessionMetrics } = await import("./lib/metrics.mjs")); },
+    bench: async () => { ({ measure, saveBaseline, compare, hasImprovement, hasRegression } = await import("./lib/bench.mjs")); },
+    smoke: async () => { ({ smoke } = await import("./lib/smoke.mjs")); },
+    test: async () => { ({ runTests } = await import("./lib/test.mjs")); },
+    contribute: async () => { ({ contribute } = await import("./lib/contribute.mjs")); },
+    upgrade: async () => { ({ upgrade: runUpgrade, checkUpdate, restoreBaseline } = await import("./lib/upgrade.mjs")); },
+    wait: async () => { ({ waitForEvent } = await import("./lib/wait.mjs")); },
+    notify: async () => { ({ notify: doNotify } = await import("./lib/notify.mjs")); },
+    merge: async () => { ({ planAgentsMerge, applyAgentsMerge, STRATEGIES, hosAgentsContent } = await import("./lib/merge.mjs")); },
+    install: async () => { ({ detectProjectCommands, ensureGeneratedFiles, isSourceRepo } = await import("./lib/install-files.mjs")); }
+};
+
+const NEEDS = {
+    status: ["status"],
+    version: ["version"],
+    doctor: ["doctor"],
+    init: ["install", "ledger", "spec", "memory", "baseline"],
+    adopt: ["install", "ledger", "spec", "memory", "baseline", "merge"],
+    upgrade: ["upgrade"],
+    ticket: ["ledger", "workflow"],
+    workflow: ["workflow"],
+    spec: ["spec"],
+    memory: ["memory"],
+    session: ["session"],
+    report: ["report"],
+    graph: ["graph"],
+    accelerators: ["accelerators"],
+    metrics: ["metrics", "session"],
+    autonomy: ["autonomy"],
+    audit: ["audit"],
+    task: ["task"],
+    language: ["language"],
+    checks: ["install"],
+    msg: ["msg"],
+    wait: ["wait"],
+    notify: ["notify"],
+    bench: ["bench"],
+    smoke: ["smoke", "install"],
+    test: ["test", "install"],
+    merge: ["merge"],
+    contribute: ["contribute"],
+    retro: ["ledger"],
+    run: ["ledger"],
+    dispatch: ["ledger", "memory"],
+    compose: ["ledger", "memory"]
+};
 
 const [, , group, ...rest] = process.argv;
 
@@ -661,6 +716,11 @@ async function main() {
     if (!handler) {
         print("usage: hos <status|doctor|init|adopt|workflow|ticket|spec|memory|compose> ...");
         process.exit(group ? 1 : 0);
+    }
+
+    // Pull in only the modules this command touches before dispatching.
+    for (const name of NEEDS[group] || []) {
+        await LOADERS[name]();
     }
 
     if (typeof handler === "function") {
