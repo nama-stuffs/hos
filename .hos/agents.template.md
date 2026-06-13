@@ -26,7 +26,9 @@ User -> Inter -> tickets -> Alpha -> composed lenses -> verified work -> async r
 1. For actionable work, start with `hos workflow start` so Inter intake, memory,
    task matching, session, ticket, and attachment are recorded together.
 2. Pull matching memory before acting: `hos memory search`.
-3. Keep `.hos/doc/spec/` current for touched capabilities.
+3. Keep `.hos/doc/spec/` current for touched capabilities as code-free,
+   behavioural acceptance criteria - the app must be rebuildable from the spec
+   alone (`hos spec lint --strict`; `.hos/doc/audit/spec.md`).
 4. Load only the files needed for the current step.
 5. Follow `.hos/doc/protocol/`.
 6. Surface reusable decisions and friction for the retrospective.

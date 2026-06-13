@@ -27,7 +27,7 @@
 //   hos dispatch <id> [--lenses frontend+ux] [--by ..] # assemble a worker brief and record the composed actor (the host spawns; HOS does not)
 //   hos retro <id> --outcome <a,b,..> [--by ..] [--note ..]  # record a retrospective decision
 //   hos metrics ticket <id> | session [<id>]    # diagnostic delivery metrics from the journey
-//   hos spec   add "<title>" [--area ..] | list | criteria | lint | index
+//   hos spec   add "<title>" [--area ..] | list | criteria | lint [--strict] | index   # --strict fails on a spec that could not rebuild its behaviour (code leak or gap)
 //   hos memory search "<text>" [--scope ..] [--kind ..] | add "<title>" [--kind policy|fact|episode] [--scope persona/<lens>|area/<x>] | friction .. | index
 //   hos session open "<request>" | attach <session> <ticket> [--reason ..] | close <session> [--summary ..] | list
 //   hos report [<session>] [--format md,html]   # structured session report
@@ -319,9 +319,16 @@ const commands = {
             spec.rebuildIndex();
             print(spec.criteria());
         },
-        lint: () => {
+        lint: (a) => {
             spec.rebuildIndex();
-            print(spec.lint());
+            const r = spec.lint();
+            print(r);
+            // --strict is the reconstruction gate: a spec that could not rebuild
+            // its own behaviour (a code leak or a missing piece) exits non-zero,
+            // so CI and the verified path can require a code-free, complete spec.
+            if (flags(a).strict && r.reconstruction.score < 1) {
+                process.exit(1);
+            }
         },
         index: () => print(spec.rebuildIndex())
     },

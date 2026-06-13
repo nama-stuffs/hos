@@ -1,6 +1,6 @@
 {
   "name": "@nama-stuffs/hos",
-  "version": "0.4.2-beta",
+  "version": "0.4.3-beta",
   "description": "HOS - a file-based, agent-agnostic operating layer for coding agents.",
   "type": "module",
   "engines": {

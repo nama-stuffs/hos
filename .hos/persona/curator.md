@@ -21,8 +21,11 @@ Treat `AGENTS.md` as already read. Read the touched docs, `.hos/doc/audit/doc.md
 ## Work Order
 
 1. Check touched memory, spec, and docs for duplicated rules and wrong owners.
-2. Keep spec acceptance criteria atomic, minimal, and non-redundant (`hos spec
-   lint`); split compound criteria and remove ones implied by another.
+2. Keep spec acceptance criteria atomic, minimal, non-redundant, and **code-free**
+   (`hos spec lint --strict`); split compound criteria, remove ones implied by
+   another, and restate any `code-leak` as observable behaviour. The spec stays
+   reconstruction-ready: the app rebuildable from it alone
+   (`.hos/doc/audit/spec.md`).
 3. Flag policies that no bench scenario or recent ticket surfaces - retirement
    candidates (`hos metrics` and recall data help).
 4. Merge overlapping capabilities; fix stale paths, commands, and links.

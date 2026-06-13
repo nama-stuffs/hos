@@ -18,7 +18,7 @@ const REQUIRED = [
     "doc/protocol/parallel.md", "doc/protocol/retrospective.md", "doc/protocol/audit.md",
     "doc/protocol/language.md", "doc/accelerators.md",
     "doc/audit/code.md", "doc/audit/design.md", "doc/audit/ux.md",
-    "doc/audit/doc.md", "doc/audit/harness.md",
+    "doc/audit/doc.md", "doc/audit/harness.md", "doc/audit/spec.md",
     "accelerators/registry.json", "agents.template.md", "tools/hos.mjs",
     "tools/lib/workflow.mjs",
     "task/self-optimization.md", "task/code-optimization.md", "task/audit.md"
