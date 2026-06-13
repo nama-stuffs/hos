@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join, relative } from "node:path";
 import { HOS_DIR, REPO_ROOT } from "./paths.mjs";
 import { settings } from "./config.mjs";
-import { globMatch, sha256, today, toPosix } from "./util.mjs";
+import { globMatch, sha256, today, toPosix, withLock, writeFileAtomic } from "./util.mjs";
 
 const AUDIT_DIR = join(HOS_DIR, "audit");
 const LEDGER = join(AUDIT_DIR, "ledger.json");
@@ -34,7 +34,7 @@ function loadLedger() {
 
 function saveLedger(data) {
     mkdirSync(AUDIT_DIR, { recursive: true });
-    writeFileSync(LEDGER, JSON.stringify(data, null, 2) + "\n");
+    writeFileAtomic(LEDGER, JSON.stringify(data, null, 2) + "\n");
 }
 
 // A repo-relative posix path is in scope when an include pattern matches and no
@@ -60,18 +60,22 @@ function walk(dir, out = []) {
 
 const normPath = (path) => toPosix(path).replace(/^\.\//, "");
 
-// Mark a file audited: record its current content hash and provenance.
+// Mark a file audited: record its current content hash and provenance. The
+// ledger is one JSON map, so the read-modify-write runs under a lock - two
+// agents recording different files at once must both land.
 export function record(path, { by = "", ticket = "", note = "" } = {}) {
     const rel = normPath(path);
     const abs = join(REPO_ROOT, rel);
     if (!existsSync(abs)) {
         throw new Error(`no such file: ${rel}`);
     }
-    const ledger = loadLedger();
-    ledger.files = ledger.files || {};
-    ledger.files[rel] = { hash: sha256(readFileSync(abs, "utf8")), by, ticket, date: today(), note };
-    saveLedger(ledger);
-    return { ok: true, path: rel, ...ledger.files[rel] };
+    return withLock("audit-ledger", () => {
+        const ledger = loadLedger();
+        ledger.files = ledger.files || {};
+        ledger.files[rel] = { hash: sha256(readFileSync(abs, "utf8")), by, ticket, date: today(), note };
+        saveLedger(ledger);
+        return { ok: true, path: rel, ...ledger.files[rel] };
+    });
 }
 
 // The ledger, or one file's entry.
@@ -113,12 +117,14 @@ export function check() {
 // Drop ledger entries for files no longer in scope (curator hygiene).
 export function prune() {
     const { include, exclude } = scope();
-    const ledger = loadLedger();
     const present = new Set(walk(REPO_ROOT).filter((rel) => inScope(rel, { include, exclude })));
-    const removed = Object.keys(ledger.files || {}).filter((rel) => !present.has(rel));
-    for (const rel of removed) {
-        delete ledger.files[rel];
-    }
-    saveLedger(ledger);
-    return { ok: true, removed };
+    return withLock("audit-ledger", () => {
+        const ledger = loadLedger();
+        const removed = Object.keys(ledger.files || {}).filter((rel) => !present.has(rel));
+        for (const rel of removed) {
+            delete ledger.files[rel];
+        }
+        saveLedger(ledger);
+        return { ok: true, removed };
+    });
 }

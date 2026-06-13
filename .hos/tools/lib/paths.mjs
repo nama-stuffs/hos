@@ -37,4 +37,8 @@ export const SPEC_INDEX = join(SPEC_DIR, "index.md");
 // user does with a report is out of scope.
 export const REPORTS_DIR = join(HOS_DIR, "reports");
 
+// Disposable local runtime state (gitignored): caches, baselines, and the lock
+// directory that serializes multi-agent read-modify-write (util.withLock).
+export const CACHE_DIR = join(HOS_DIR, ".cache");
+
 export const AGENTS_MD = join(REPO_ROOT, "AGENTS.md");

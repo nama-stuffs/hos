@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { SPEC_DIR, SPEC_INDEX } from "./paths.mjs";
-import { slugify, today, toPosix, writeFileAtomic } from "./util.mjs";
+import { slugify, today, toPosix, withLock, writeFileAtomic } from "./util.mjs";
 import * as fm from "./frontmatter.mjs";
 
 const TEMPLATE = () => `## Purpose
@@ -127,17 +127,22 @@ export function add({ title, area = "", acceptance = [] }) {
     return file;
 }
 
+// Locked like the ticket index: each parallel add rebuilds after its own file
+// landed, so the last rebuild in lock order has seen every finished add and
+// the index converges complete - no lost row, no manual re-sync.
 export function rebuildIndex() {
     mkdirSync(SPEC_DIR, { recursive: true });
-    const rows = list().sort((a, b) => a.path.localeCompare(b.path))
-        .map((s) => `| [${s.title}](${s.path}) | \`${s.area || "-"}\` | ${s.criteria} | ${s.status} |`);
-    const out = [
-        "# Functional Specification", "",
-        "Generated index. Do not edit by hand. Capabilities are defined by their",
-        "acceptance criteria; see `.hos/doc/protocol/spec.md`.", "",
-        "| Capability | Area | Criteria | Status |", "| ---------- | ---- | -------- | ------ |",
-        ...(rows.length ? rows : ["| _none yet_ | - | - | - |"]), ""
-    ].join("\n");
-    writeFileAtomic(SPEC_INDEX, out);
-    return SPEC_INDEX;
+    return withLock("spec-index", () => {
+        const rows = list().sort((a, b) => a.path.localeCompare(b.path))
+            .map((s) => `| [${s.title}](${s.path}) | \`${s.area || "-"}\` | ${s.criteria} | ${s.status} |`);
+        const out = [
+            "# Functional Specification", "",
+            "Generated index. Do not edit by hand. Capabilities are defined by their",
+            "acceptance criteria; see `.hos/doc/protocol/spec.md`.", "",
+            "| Capability | Area | Criteria | Status |", "| ---------- | ---- | -------- | ------ |",
+            ...(rows.length ? rows : ["| _none yet_ | - | - | - |"]), ""
+        ].join("\n");
+        writeFileAtomic(SPEC_INDEX, out);
+        return SPEC_INDEX;
+    });
 }

@@ -5,7 +5,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { TICKETS_DIR, TICKETS_INDEX } from "./paths.mjs";
-import { nowIso, slugify, today, tokenize, writeFileAtomic } from "./util.mjs";
+import { nowIso, slugify, today, tokenize, withLock, writeFileAtomic } from "./util.mjs";
 
 // The canonical status model (doc/protocol/task.md). A move outside it is a typo,
 // not a new state.
@@ -34,17 +34,25 @@ function ticketDirs() {
         : [];
 }
 
-function newId(title) {
+// Allocate the ticket's id by creating its directory: a non-recursive mkdir is
+// atomic on every platform, so two agents filing the same title at the same
+// moment get distinct ids instead of writing into one directory. No central
+// counter file exists to contend on.
+function allocateTicketDir(title) {
+    mkdirSync(TICKETS_DIR, { recursive: true });
     const base = `${prefix()}-${today()}-${slugify(title) || "ticket"}`;
-    if (!existsSync(join(TICKETS_DIR, base))) {
-        return base;
+    let id = base;
+    for (let n = 2; ; n++) {
+        try {
+            mkdirSync(join(TICKETS_DIR, id));
+            return id;
+        } catch (err) {
+            if (err.code !== "EEXIST") {
+                throw err;
+            }
+            id = `${base}-${n}`;
+        }
     }
-
-    let n = 2;
-    while (existsSync(join(TICKETS_DIR, `${base}-${n}`))) {
-        n++;
-    }
-    return `${base}-${n}`;
 }
 
 function dirOf(id) {
@@ -90,7 +98,23 @@ function writePlan(id, actor) {
         },
         steps: []
     };
-    writeFileSync(join(dirOf(id), "plan.json"), JSON.stringify(plan, null, 2) + "\n");
+    writeFileAtomic(join(dirOf(id), "plan.json"), JSON.stringify(plan, null, 2) + "\n");
+}
+
+// Serialize a read-modify-write of one ticket's surface record. The claim is
+// the ownership convention; this is the mechanical floor under it - two agents
+// touching the same ticket (a status move racing a relation link) must not
+// drop each other's update or tear the file.
+function mutateTicket(id, fn) {
+    if (!existsSync(dirOf(id))) {
+        throw new Error(`no such ticket: ${id}`);
+    }
+    return withLock(`ticket-${id}`, () => {
+        const { data, body } = read(id);
+        const result = fn(data, body);
+        writeFileAtomic(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+        return result;
+    });
 }
 
 // One-line acceptance with | separators becomes checkbox criteria (the same
@@ -108,7 +132,7 @@ function renderAcceptance(acceptance) {
 
 // Create a ticket. Returns { id, dir }. actor is "base+lens+lens" (base first).
 export function create({ title, report = "", acceptance = "", actor = "", level = "", labels = [] }) {
-    const id = newId(title);
+    const id = allocateTicketDir(title);
     const dir = dirOf(id);
     mkdirSync(join(dir, "evidence"), { recursive: true });
 
@@ -123,7 +147,7 @@ export function create({ title, report = "", acceptance = "", actor = "", level 
         "## Elements", "", "- [ ] _(break the work into checkable items)_", ""
     ].join("\n");
 
-    writeFileSync(join(dir, "ticket.md"), fm.serialize(data, body));
+    writeFileAtomic(join(dir, "ticket.md"), fm.serialize(data, body));
     writePlan(id, actor);
     journey(id, { actor: "inter", kind: "intake", summary: title });
     rebuildIndex();
@@ -135,11 +159,29 @@ export function journey(id, { actor = "", kind = "note", summary = "", ref = "",
     appendFileSync(join(dirOf(id), "journey.ndjson"), JSON.stringify({ ts: nowIso(), actor, kind, summary, ref, ...rest }) + "\n");
 }
 
+// A directory whose ticket.md has not landed yet is a ticket mid-allocation by
+// a sibling process (the mkdir is the id mutex; the file follows): skip it
+// rather than crash a concurrent scan. Its own create finishes the record.
+function readBorn(id) {
+    try {
+        return read(id);
+    } catch (err) {
+        if (err.code === "ENOENT") {
+            return null;
+        }
+        throw err;
+    }
+}
+
 export function list() {
-    return ticketDirs().map((id) => {
-        const { data } = read(id);
+    return ticketDirs().flatMap((id) => {
+        const born = readBorn(id);
+        if (!born) {
+            return [];
+        }
+        const { data } = born;
         const claim = claimOf(data.id || id);
-        return { id: data.id || id, title: data.title, status: data.status, level: data.level || "", labels: Array.isArray(data.labels) ? data.labels : [], actor: data.actor, claimedBy: claim?.by || null };
+        return [{ id: data.id || id, title: data.title, status: data.status, level: data.level || "", labels: Array.isArray(data.labels) ? data.labels : [], actor: data.actor, claimedBy: claim?.by || null }];
     });
 }
 
@@ -147,7 +189,10 @@ export function list() {
 export function children(id) {
     return ticketDirs()
         .filter((dir) => dir !== id)
-        .map((dir) => read(dir).data)
+        .flatMap((dir) => {
+            const born = readBorn(dir);
+            return born ? [born.data] : [];
+        })
         .filter((data) => data.parent === id)
         .map((data) => ({ id: data.id, title: data.title, status: data.status }));
 }
@@ -301,9 +346,23 @@ export function recordRun(id, { cmd = "", exit = 0, durationMs = 0, output = "",
         throw new Error(`no such ticket: ${id}`);
     }
     mkdirSync(logDir(id), { recursive: true });
-    const seq = readdirSync(logDir(id)).filter((f) => /^run-\d+\.out$/.test(f)).length + 1;
-    const outFile = `run-${String(seq).padStart(3, "0")}.out`;
-    writeFileSync(join(logDir(id), outFile), output);
+    // The wx flag makes the capture file the allocation: parallel runs on one
+    // ticket (executor and verifier both prove through hos run) each land in
+    // their own run-NNN.out instead of overwriting a shared sequence number.
+    let seq = readdirSync(logDir(id)).filter((f) => /^run-\d+\.out$/.test(f)).length + 1;
+    let outFile;
+    for (;;) {
+        outFile = `run-${String(seq).padStart(3, "0")}.out`;
+        try {
+            writeFileSync(join(logDir(id), outFile), output, { flag: "wx" });
+            break;
+        } catch (err) {
+            if (err.code !== "EEXIST") {
+                throw err;
+            }
+            seq++;
+        }
+    }
     appendFileSync(
         join(logDir(id), "runs.ndjson"),
         JSON.stringify({ ts: nowIso(), actor, cmd, exit, durationMs, out: outFile, session: activeSession() || "" }) + "\n"
@@ -365,24 +424,24 @@ export function move(id, status, note = "") {
     if (!STATUSES.includes(status)) {
         throw new Error(`unknown status: ${status || "(none)"} (one of: ${STATUSES.join(", ")})`);
     }
-    const { data, body } = read(id);
-    if (["fixed", "verified"].includes(status)) {
-        const acceptance = acceptanceSection(body);
-        if (!acceptance || acceptance === ACCEPTANCE_PLACEHOLDER) {
-            throw new Error(`ticket ${id} has no acceptance defined; fill the ## Acceptance section in its ticket.md (or create with --acceptance) before marking ${status}`);
+    mutateTicket(id, (data, body) => {
+        if (["fixed", "verified"].includes(status)) {
+            const acceptance = acceptanceSection(body);
+            if (!acceptance || acceptance === ACCEPTANCE_PLACEHOLDER) {
+                throw new Error(`ticket ${id} has no acceptance defined; fill the ## Acceptance section in its ticket.md (or create with --acceptance) before marking ${status}`);
+            }
+            const level = autonomyGate(data.level || "medium");
+            if (!level.ok) {
+                throw new Error(`${level.required} work exceeds the granted autonomy (${level.granted}); escalate through Inter (hos autonomy set ${level.required} on the user's approval) or narrow the scope`);
+            }
         }
-        const level = autonomyGate(data.level || "medium");
-        if (!level.ok) {
-            throw new Error(`${level.required} work exceeds the granted autonomy (${level.granted}); escalate through Inter (hos autonomy set ${level.required} on the user's approval) or narrow the scope`);
+        data.status = status;
+        // Leaving blocked clears a park: the user's decision has been taken.
+        if (status !== "blocked" && Array.isArray(data.labels)) {
+            data.labels = data.labels.filter((l) => l !== "parked");
         }
-    }
-    data.status = status;
-    // Leaving blocked clears a park: the user's decision has been taken.
-    if (status !== "blocked" && Array.isArray(data.labels)) {
-        data.labels = data.labels.filter((l) => l !== "parked");
-    }
-    data.updated = today();
-    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+        data.updated = today();
+    });
     journey(id, { actor: "alpha", kind: "status", summary: `-> ${status}${note ? `: ${note}` : ""}`, ref: status });
     rebuildIndex();
     // Chain the protocol: each move names the step task.md expects next, so an
@@ -400,13 +459,14 @@ export function move(id, status, note = "") {
 // it at planning; rev verifies the declared level matches the diff. See the
 // change-levels & autonomy section of doc/protocol/task.md.
 export function setLevel(id, level) {
-    const { data, body } = read(id);
-    data.level = normalizeLevel(level);
-    data.updated = today();
-    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
-    journey(id, { actor: "alpha", kind: "level", summary: `level -> ${data.level}` });
+    const value = normalizeLevel(level);
+    mutateTicket(id, (data) => {
+        data.level = value;
+        data.updated = today();
+    });
+    journey(id, { actor: "alpha", kind: "level", summary: `level -> ${value}` });
     rebuildIndex();
-    return { id, level: data.level };
+    return { id, level: value };
 }
 
 // Journey kinds that count as observed effort, alongside captured runs. HOS cannot
@@ -428,7 +488,7 @@ export function setBudget(id, { estimate, unit = "steps" } = {}) {
     if (!Number.isFinite(n) || n <= 0) {
         throw new Error("budget needs --estimate <positive number>");
     }
-    writeFileSync(join(dirOf(id), "budget.json"), JSON.stringify({ estimate: n, unit, setBy: "alpha", at: nowIso() }, null, 2) + "\n");
+    writeFileAtomic(join(dirOf(id), "budget.json"), JSON.stringify({ estimate: n, unit, setBy: "alpha", at: nowIso() }, null, 2) + "\n");
     journey(id, { actor: "alpha", kind: "budget", summary: `estimate ${n} ${unit}` });
     return { id, estimate: n, unit };
 }
@@ -450,11 +510,11 @@ export function budgetStatus(id) {
 // It becomes a blocked ticket carrying the `parked` label; Inter surfaces it and
 // drives the decision. See doc/protocol/task.md and persona/inter.md.
 export function park(id, { note = "", by = "alpha" } = {}) {
-    const { data, body } = read(id);
-    data.status = "blocked";
-    data.labels = addUnique(Array.isArray(data.labels) ? data.labels : [], "parked");
-    data.updated = today();
-    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+    mutateTicket(id, (data) => {
+        data.status = "blocked";
+        data.labels = addUnique(Array.isArray(data.labels) ? data.labels : [], "parked");
+        data.updated = today();
+    });
     journey(id, { actor: by, kind: "park", summary: note || "parked for a user decision", ref: "parked" });
     rebuildIndex();
     return { id, status: "blocked", parked: true, note };
@@ -506,18 +566,16 @@ export function retro(id, { outcomes = [], by = "optimizer", note = "", ref = ""
 // replacing a verbatim user-language intake title with the harness-language one
 // (doc/protocol/language.md).
 export function retitle(id, title) {
-    if (!existsSync(dirOf(id))) {
-        throw new Error(`no such ticket: ${id}`);
-    }
     const text = String(title || "").trim();
     if (!text) {
         throw new Error("ticket title needs the new title text");
     }
-    const { data, body } = read(id);
-    const previous = data.title;
-    data.title = text;
-    data.updated = today();
-    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+    const previous = mutateTicket(id, (data) => {
+        const before = data.title;
+        data.title = text;
+        data.updated = today();
+        return before;
+    });
     journey(id, { actor: "inter", kind: "retitle", summary: `${previous} -> ${text}` });
     rebuildIndex();
     return { id, title: text, previous };
@@ -528,25 +586,26 @@ function addUnique(list, value) {
 }
 
 export function link(id, { parent = "", blocks = "", blockedBy = "", duplicateOf = "" } = {}) {
-    const { data, body } = read(id);
-    if (parent) {
-        data.parent = parent;
-    }
-    if (blocks) {
-        data.blocks = addUnique(Array.isArray(data.blocks) ? data.blocks : [], blocks);
-    }
-    if (blockedBy) {
-        data.blockedBy = addUnique(Array.isArray(data.blockedBy) ? data.blockedBy : [], blockedBy);
-    }
-    if (duplicateOf) {
-        data.duplicateOf = duplicateOf;
-        data.status = "duplicate";
-    }
-    data.updated = today();
-    writeFileSync(join(dirOf(id), "ticket.md"), fm.serialize(data, body));
+    const result = mutateTicket(id, (data) => {
+        if (parent) {
+            data.parent = parent;
+        }
+        if (blocks) {
+            data.blocks = addUnique(Array.isArray(data.blocks) ? data.blocks : [], blocks);
+        }
+        if (blockedBy) {
+            data.blockedBy = addUnique(Array.isArray(data.blockedBy) ? data.blockedBy : [], blockedBy);
+        }
+        if (duplicateOf) {
+            data.duplicateOf = duplicateOf;
+            data.status = "duplicate";
+        }
+        data.updated = today();
+        return { id, parent: data.parent, blocks: data.blocks, blockedBy: data.blockedBy, duplicateOf: data.duplicateOf, status: data.status };
+    });
     journey(id, { actor: "alpha", kind: "relation", summary: JSON.stringify({ parent, blocks, blockedBy, duplicateOf }) });
     rebuildIndex();
-    return { id, parent: data.parent, blocks: data.blocks, blockedBy: data.blockedBy, duplicateOf: data.duplicateOf, status: data.status };
+    return result;
 }
 
 // Generate a full journey report in markdown.
@@ -563,17 +622,23 @@ export function report(id) {
     return path;
 }
 
+// The index is a derived cache over the ticket directories. The lock makes
+// concurrent rebuilds serialize: every writer creates its ticket files before
+// rebuilding, so the last rebuild in lock order has seen every finished write
+// and the index converges complete - no torn file, no lost row.
 export function rebuildIndex() {
     mkdirSync(TICKETS_DIR, { recursive: true });
-    const rows = list().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
-        .map((t) => `| ${t.id} | ${t.title} | ${t.status} | ${t.level || "-"} | \`${t.actor || "-"}\` | ${t.claimedBy ? `\`${t.claimedBy}\`` : "-"} |`);
-    const out = [
-        "# Ticket Ledger", "",
-        "The in-repo tracker. Generated by `hos ticket index` -- do not edit by",
-        "hand. See `.hos/doc/protocol/task.md`.", "",
-        "| ID | Title | Status | Level | Actor | Claim |", "| -- | ----- | ------ | ----- | ----- | ----- |",
-        ...(rows.length ? rows : ["| - | _none yet_ | - | - | - | - |"]), ""
-    ].join("\n");
-    writeFileAtomic(TICKETS_INDEX, out);
-    return TICKETS_INDEX;
+    return withLock("tickets-index", () => {
+        const rows = list().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+            .map((t) => `| ${t.id} | ${t.title} | ${t.status} | ${t.level || "-"} | \`${t.actor || "-"}\` | ${t.claimedBy ? `\`${t.claimedBy}\`` : "-"} |`);
+        const out = [
+            "# Ticket Ledger", "",
+            "The in-repo tracker. Generated by `hos ticket index` -- do not edit by",
+            "hand. See `.hos/doc/protocol/task.md`.", "",
+            "| ID | Title | Status | Level | Actor | Claim |", "| -- | ----- | ------ | ----- | ----- | ----- |",
+            ...(rows.length ? rows : ["| - | _none yet_ | - | - | - | - |"]), ""
+        ].join("\n");
+        writeFileAtomic(TICKETS_INDEX, out);
+        return TICKETS_INDEX;
+    });
 }

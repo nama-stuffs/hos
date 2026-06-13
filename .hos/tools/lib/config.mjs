@@ -1,7 +1,8 @@
 // Loads .hos/hos.json, the single project settings file.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { HOS_JSON } from "./paths.mjs";
+import { withLock, writeFileAtomic } from "./util.mjs";
 
 let cached = null;
 
@@ -22,12 +23,18 @@ function mergeValue(current, patch) {
     );
 }
 
-// Persist a recursive patch back to hos.json (used by install/adopt).
+// Persist a recursive patch back to hos.json. Read-modify-write under a lock:
+// two agents patching at once (an autonomy grant racing a language change)
+// must compose, not overwrite each other - and the in-process cache is dropped
+// first so the merge starts from what is actually on disk.
 export function patchSettings(patch) {
-    const next = mergeValue(settings(), patch);
-    writeFileSync(HOS_JSON, JSON.stringify(next, null, 2) + "\n");
-    cached = next;
-    return next;
+    return withLock("settings", () => {
+        cached = null;
+        const next = mergeValue(settings(), patch);
+        writeFileAtomic(HOS_JSON, JSON.stringify(next, null, 2) + "\n");
+        cached = next;
+        return next;
+    });
 }
 
 // Has the harness been set up for this project yet? It is initialized once a

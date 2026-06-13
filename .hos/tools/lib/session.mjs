@@ -6,7 +6,7 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SESSIONS_LOG, TICKETS_DIR } from "./paths.mjs";
-import { nowIso, slugify } from "./util.mjs";
+import { nowIso, slugify, withLock } from "./util.mjs";
 
 function readLog() {
     return existsSync(SESSIONS_LOG)
@@ -19,14 +19,19 @@ function readLog() {
 // unique: a same-day request with the same slug gets a numeric suffix, so two
 // sessions never share one id (mirrors ticket id allocation).
 export function open(request) {
-    const base = `S-${new Date().toISOString().slice(0, 10)}-${slugify(request).slice(0, 24).replace(/-+$/, "") || "session"}`;
-    const taken = new Set(readLog().filter((e) => e.event === "open").map((e) => e.id));
-    let id = base;
-    for (let n = 2; taken.has(id); n++) {
-        id = `${base}-${n}`;
-    }
-    appendFileSync(SESSIONS_LOG, JSON.stringify({ ts: nowIso(), id, event: "open", request }) + "\n");
-    return id;
+    // Id uniqueness needs read-then-append; the lock makes two agents opening
+    // the same request at the same moment allocate distinct ids instead of
+    // conflating their sessions.
+    return withLock("sessions", () => {
+        const base = `S-${new Date().toISOString().slice(0, 10)}-${slugify(request).slice(0, 24).replace(/-+$/, "") || "session"}`;
+        const taken = new Set(readLog().filter((e) => e.event === "open").map((e) => e.id));
+        let id = base;
+        for (let n = 2; taken.has(id); n++) {
+            id = `${base}-${n}`;
+        }
+        appendFileSync(SESSIONS_LOG, JSON.stringify({ ts: nowIso(), id, event: "open", request }) + "\n");
+        return id;
+    });
 }
 
 // Attach a ticket (and why it exists) to the active session.

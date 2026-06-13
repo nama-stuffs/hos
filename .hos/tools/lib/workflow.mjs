@@ -2,10 +2,11 @@
 // verification -> report/retro path. The protocols describe the intent; this
 // module makes the objective parts checkable.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { SESSIONS_LOG, TICKETS_DIR } from "./paths.mjs";
 import { settings } from "./config.mjs";
+import { writeFileAtomic } from "./util.mjs";
 import * as ledger from "./ledger.mjs";
 import * as memory from "./memory.mjs";
 import * as session from "./session.mjs";
@@ -395,7 +396,7 @@ export function plan(id, {
         ]
     };
 
-    writeFileSync(join(ticketDir(id), "plan.json"), JSON.stringify(planned, null, 2) + "\n");
+    writeFileAtomic(join(ticketDir(id), "plan.json"), JSON.stringify(planned, null, 2) + "\n");
     ledger.setLevel(id, lvl);
     ledger.log(id, { kind: "plan", summary: `workflow plan: ${execute} -> ${verify}`, by: "alpha" });
     const result = {

@@ -125,10 +125,31 @@ that cannot degrades to synchronous mode.
 
 ## Concurrency rules
 
-- **One ticket, one owner.** A worker writes only its claimed ticket's files.
-- **Journeys and deep logs are append-only.** No worker rewrites another's record.
-- **Indexes are derived and written atomically**; the conductor rebuilds them at
-  integration, and any `hos spec list|lint` heals the spec index.
+Any number of agents may run `hos` commands at the same time; the harness
+serializes every shared write itself:
+
+- **Ticket ids are allocated by the filesystem.** Creating a ticket creates its
+  directory (an atomic mkdir), so two agents filing the same title at the same
+  moment get distinct ids - there is no central counter to contend on.
+- **One ticket, one owner.** The claim (`claim.json`, exclusive `wx` create) is
+  the ownership convention; under it, every read-modify-write of a ticket's
+  surface record runs inside a per-ticket lock, so a status move racing a
+  relation link drops nothing.
+- **Journeys, deep logs, and sessions are append-only.** Run captures allocate
+  their `run-NNN.out` exclusively (`wx`), so parallel runs on one ticket never
+  overwrite each other; session ids are allocated under a lock.
+- **Indexes are derived caches, rebuilt under a lock and written atomically**
+  (unique temp file + rename). Every writer rebuilds after its own files
+  landed, so the last rebuild in lock order leaves the index complete; any
+  `hos spec list|lint` or `hos ticket index` reconverges one on demand. Never
+  edit an index by hand; read records through the CLI.
+- **Settings and the audit ledger are single JSON files**, so their patches run
+  under a lock: concurrent autonomy grants, language changes, or audit records
+  compose instead of overwriting each other.
+- **The inbox is one file per message**; archiving on drain is the delivery
+  claim, so racing drains deliver each message at most once.
+- Locks live under `.hos/.cache/locks/` (gitignored); a crashed holder is
+  evicted after ten seconds, so a dead process never wedges the harness.
 - **Implementation and verification are separate steps** (`orchestration.md`),
   and verification runs in its own session - the gate compares the verify
   event's session against the ticket's work sessions.
